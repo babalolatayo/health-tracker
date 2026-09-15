@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Counter — Tournament</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Mono:wght@400;500&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+<style>
+  :root{
+    --cream:#F1E7D0; --paper:#FBF6EA; --charcoal:#2A2420; --red:#B33A2E; --red-dark:#8f2e24;
+    --mustard:#DCA23A; --olive:#6E7A46; --ink-light:#6b5f52; --line:#D8C9A8; --white:#fffdf7;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--cream);
+    background-image:radial-gradient(circle at 1px 1px, rgba(42,36,32,0.05) 1px, transparent 0);
+    background-size:18px 18px;
+    color:var(--charcoal); font-family:'Karla',sans-serif; min-height:100vh; -webkit-font-smoothing:antialiased;
+  }
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;} }
+  h1,h2,h3{font-family:'Anton',sans-serif; font-weight:400; letter-spacing:0.5px; margin:0;}
+  .app{max-width:640px;margin:0 auto;padding:20px 16px 60px;min-height:100vh;}
+  .topbar{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;padding-bottom:12px;border-bottom:3px solid var(--charcoal);}
+  .topbar .brand{font-family:'Anton',sans-serif;font-size:28px;color:var(--red);}
+  .topbar .role-tag{font-family:'DM Mono',monospace;font-size:12px;color:var(--ink-light);}
+  button{font-family:'Karla',sans-serif;font-weight:700;font-size:15px;border:2px solid var(--charcoal);background:var(--white);color:var(--charcoal);border-radius:10px;padding:12px 18px;cursor:pointer;}
+  button:hover{background:var(--charcoal);color:var(--white);}
+  button:focus-visible{outline:3px solid var(--red);outline-offset:2px;}
+  button.primary{background:var(--red);color:var(--white);border-color:var(--red-dark);}
+  button.primary:hover{background:var(--red-dark);}
+  button.ghost{background:transparent;}
+  button.small{padding:7px 12px;font-size:13px;border-radius:8px;}
+  button:disabled{opacity:0.45;cursor:not-allowed;}
+  .stack-v > * + *{margin-top:14px;}
+  .card{background:var(--paper);border:2px solid var(--charcoal);border-radius:14px;padding:20px;box-shadow:4px 4px 0 rgba(42,36,32,0.12);}
+  label{display:block;font-size:13px;font-weight:700;color:var(--ink-light);margin-bottom:6px;}
+  input[type=text], input[type=number], select, textarea{
+    width:100%;font-family:'Karla',sans-serif;font-size:16px;padding:10px 12px;
+    border:2px solid var(--line);border-radius:8px;background:var(--white);color:var(--charcoal);
+  }
+  textarea{font-family:'DM Mono',monospace;font-size:13px;min-height:70px;resize:vertical;}
+  input:focus-visible, select:focus-visible, textarea:focus-visible{outline:3px solid var(--red);outline-offset:1px;border-color:var(--red);}
+  .field + .field{margin-top:14px;}
+  .hint{font-size:12px;color:var(--ink-light);margin-top:4px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+  .row > *{flex:1;min-width:100px;}
+  .pill{display:inline-block;font-family:'DM Mono',monospace;font-size:12px;background:var(--mustard);color:var(--charcoal);border-radius:999px;padding:3px 10px;border:1.5px solid var(--charcoal);}
+  .pill.olive{background:var(--olive);color:var(--white);}
+  .pill.red{background:var(--red);color:var(--white);}
+  .center{text-align:center;}
+  .muted{color:var(--ink-light);}
+  .linkbox{display:flex;gap:8px;align-items:stretch;}
+  .linkbox input{font-family:'DM Mono',monospace;font-size:12.5px;}
+  .lb-row{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line);}
+  .lb-row:last-child{border-bottom:none;}
+  .lb-rank{font-family:'DM Mono',monospace;width:26px;color:var(--ink-light);font-size:14px;}
+  .lb-name{flex:1;font-weight:700;}
+  .lb-score{font-family:'DM Mono',monospace;font-size:15px;}
+  .ticket{background:var(--white);border:2px dashed var(--charcoal);border-radius:4px;padding:16px;font-family:'DM Mono',monospace;}
+  .ticket .t-head{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-light);margin-bottom:8px;}
+  .ticket .t-customer{font-family:'Anton',sans-serif;font-size:22px;margin-bottom:6px;}
+  .ticket .t-line{font-size:14px;margin:3px 0;}
+  .ticket .t-line b{color:var(--red);}
+  .ticket .t-rule{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:13px;color:var(--olive);font-weight:700;}
+  .timer-wrap{display:flex;align-items:center;justify-content:space-between;margin:14px 0;gap:10px;}
+  .timer{font-family:'DM Mono',monospace;font-size:34px;font-weight:500;}
+  .timer.low{color:var(--red);}
+  .bun-top, .bun-bottom{height:22px;background:var(--mustard);border:2px solid var(--charcoal);}
+  .bun-top{border-radius:40px 40px 8px 8px;}
+  .bun-bottom{border-radius:8px 8px 40px 40px;}
+  .build-shell{border:2px solid var(--charcoal);border-radius:10px;overflow:hidden;background:var(--white);}
+  .stack-zone{min-height:70px;padding:4px 10px;}
+  .layer{margin:3px 10px;border:1.5px solid rgba(42,36,32,0.35);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--charcoal);font-size:11px;font-weight:700;}
+  .layer:hover{filter:brightness(0.92);}
+  .layer.sauce{height:8px;border-radius:6px;font-size:0;}
+  .layer.veg{height:15px;border-radius:6px;clip-path:polygon(0% 30%,5% 0%,12% 30%,19% 0%,26% 30%,33% 0%,40% 30%,47% 0%,54% 30%,61% 0%,68% 30%,75% 0%,82% 30%,89% 0%,96% 30%,100% 15%,100% 100%,0% 100%);}
+  .layer.cheese{height:13px;border-radius:3px 10px 3px 10px;}
+  .layer.meat{height:17px;border-radius:5px;background-image:repeating-linear-gradient(-45deg, rgba(0,0,0,0.06) 0 4px, transparent 4px 8px);}
+  .layer.extra{height:14px;border-radius:8px;}
+  .ingr-menu{display:grid;grid-template-columns:repeat(auto-fill, minmax(108px,1fr));gap:8px;margin-top:10px;}
+  .ingr-btn{font-family:'Karla',sans-serif;font-size:12.5px;font-weight:700;text-align:left;border:1.5px solid var(--charcoal);border-radius:8px;padding:8px 9px;cursor:pointer;color:var(--charcoal);}
+  .bread-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .bread-btn{flex:1;min-width:120px;}
+  .bread-btn.chosen{background:var(--charcoal);color:var(--white);}
+  .cat-heading{font-size:12px;font-weight:700;color:var(--ink-light);margin:16px 0 2px;}
+  .cat-heading:first-child{margin-top:0;}
+  .trophy-wrap{text-align:center;padding:30px 10px;}
+  .trophy-emoji{font-size:64px;display:block;margin-bottom:6px;}
+  .score-breakdown{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:13px;margin-top:10px;}
+  .score-breakdown .k{color:var(--ink-light);}
+  .score-breakdown .v{font-family:'DM Mono',monospace;text-align:right;}
+  .resultline{background:var(--white);border:1.5px dashed var(--line);border-radius:8px;padding:10px;font-family:'DM Mono',monospace;font-size:13px;margin-top:10px;word-break:break-word;}
+  footer.tip{margin-top:26px;font-size:12.5px;color:var(--ink-light);text-align:center;}
+  .lb-screen{max-width:760px;}
+  .cut-divider{display:flex;align-items:center;gap:10px;margin:10px 0;color:var(--ink-light);font-family:'DM Mono',monospace;font-size:11px;}
+  .cut-divider::before, .cut-divider::after{content:'';flex:1;border-top:1.5px dashed var(--line);}
+  .lb-big .lb-row{padding:16px 8px;font-size:19px;}
+  .lb-big .lb-rank{font-size:22px;width:42px;}
+  .lb-big .lb-score{font-size:19px;}
+  .lb-big h2{font-size:32px;}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<script>
+/* ---------------- utilities ---------------- */
+const $ = sel => document.querySelector(sel);
+function el(tag, attrs={}, children=[]){
+  const e = document.createElement(tag);
+  for(const k in attrs){
+    if(k==='class') e.className=attrs[k];
+    else if(k==='html') e.innerHTML=attrs[k];
+    else if(k.startsWith('on')) e.addEventListener(k.slice(2), attrs[k]);
+    else e.setAttribute(k, attrs[k]);
+  }
+  (Array.isArray(children)?children:[children]).forEach(c=>{
+    if(c==null) return;
+    e.appendChild(typeof c==='string'? document.createTextNode(c) : c);
+  });
+  return e;
+}
+function randId(n=8){ return Math.random().toString(36).slice(2,2+n); }
+function fmtClock(ms){
+  const s = Math.max(0, Math.ceil(ms/1000));
+  const m = Math.floor(s/60), r = s%60;
+  return m>0 ? `${m}:${String(r).padStart(2,'0')}` : `${r}s`;
+}
+function copyText(text, btn){
+  const done = ()=>{ if(btn){ const old=btn.textContent; btn.textContent='Copied!'; setTimeout(()=>btn.textContent=old, 1400);} };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text,done));
+  } else fallbackCopy(text,done);
+}
+function fallbackCopy(text, done){
+  const ta = document.createElement('textarea');
+  ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); done(); }catch(e){}
+  document.body.removeChild(ta);
+}
+
+/* ---------------- live sync (works on a real host like GitHub Pages — Claude's own
+   artifact sandbox blocks outbound connections, which is why this stayed link+paste there) ---------------- */
+let mqttClient = null;
+let mqttReady = false;
+const topicHandlers = {};
+function mqttConnect(){
+  if(mqttClient || typeof mqtt === 'undefined') return mqttClient;
+  try{
+    mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+      clientId: 'counter_' + randId(10), clean:true, connectTimeout:8000, reconnectPeriod:2500,
+    });
+    mqttClient.on('connect', ()=>{ mqttReady = true; refreshLiveBadge(); });
+    mqttClient.on('reconnect', ()=>{ mqttReady = false; refreshLiveBadge(); });
+    mqttClient.on('close', ()=>{ mqttReady = false; refreshLiveBadge(); });
+    mqttClient.on('message', (topic, msg)=>{
+      const handlers = topicHandlers[topic];
+      if(!handlers) return;
+      let data = null;
+      try{ data = JSON.parse(msg.toString()); }catch(e){ return; }
+      handlers.forEach(fn=>{ try{ fn(data); }catch(e){} });
+    });
+  }catch(e){ mqttClient = null; }
+  return mqttClient;
+}
+function refreshLiveBadge(){
+  const b = document.getElementById('live-badge');
+  if(b){ b.textContent = mqttReady ? '🟢 live' : '🟡 connecting'; b.classList.toggle('olive', mqttReady); }
+}
+function mqttSub(topic, handler){
+  const c = mqttConnect();
+  if(!c) return;
+  (topicHandlers[topic] = topicHandlers[topic] || []).push(handler);
+  c.subscribe(topic);
+}
+function mqttPub(topic, data){
+  const c = mqttConnect();
+  if(!c) return;
+  try{ c.publish(topic, JSON.stringify(data)); }catch(e){}
+}
+function topicGo(salt){ return `sandwich-masters/${salt}/go`; }
+function topicResult(salt, round){ return `sandwich-masters/${salt}/result/${round}`; }
+function topicJoin(salt){ return `sandwich-masters/${salt}/join`; }
+
+/* seeded RNG (deterministic tickets from a shared string, no network needed) */
+function xmur3(str){
+  let h = 1779033703 ^ str.length;
+  for(let i=0;i<str.length;i++){ h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h<<13)|(h>>>19); }
+  return function(){
+    h = Math.imul(h ^ (h>>>16), 2246822519);
+    h = Math.imul(h ^ (h>>>13), 3266489917);
+    return (h ^= h>>>16) >>> 0;
+  };
+}
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a>>>15, 1 | a);
+    t = t + Math.imul(t ^ t>>>7, 61 | t) ^ t;
+    return ((t ^ t>>>14) >>> 0) / 4294967296;
+  };
+}
+function makeRng(seedStr){ return mulberry32(xmur3(seedStr)()); }
+function rngPick(rng, arr){ return arr[Math.floor(rng()*arr.length)]; }
+function rngShuffle(rng, arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j = Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+
+/* ---------------- game data ---------------- */
+const BREADS = [
+  {id:'panini', name:'Panini roll'}, {id:'sourdough', name:'Sourdough batch'},
+  {id:'ciabatta', name:'Ciabatta'}, {id:'flatbread', name:'Flatbread wrap'},
+];
+const INGREDIENTS = [
+  {id:'ham', name:'Smoked ham', cat:'meat', color:'#d98a7a'},
+  {id:'chicken', name:'Roast chicken', cat:'meat', color:'#e0b98a'},
+  {id:'pastrami', name:'Pastrami', cat:'meat', color:'#a84632'},
+  {id:'tuna', name:'Tuna mix', cat:'meat', color:'#c9a97e'},
+  {id:'falafel', name:'Falafel', cat:'meat', color:'#8a7a4a'},
+  {id:'turkey', name:'Turkey breast', cat:'meat', color:'#d9b48f'},
+  {id:'cheddar', name:'Cheddar', cat:'cheese', color:'#f2c34d'},
+  {id:'swiss', name:'Swiss', cat:'cheese', color:'#f5e1a0'},
+  {id:'mozzarella', name:'Mozzarella', cat:'cheese', color:'#f7f0dc'},
+  {id:'blue', name:'Blue cheese', cat:'cheese', color:'#cbb9d8'},
+  {id:'lettuce', name:'Lettuce', cat:'veg', color:'#8fae4a'},
+  {id:'tomato', name:'Tomato', cat:'veg', color:'#d9483a'},
+  {id:'onion', name:'Red onion', cat:'veg', color:'#9a4a7a'},
+  {id:'pickles', name:'Pickles', cat:'veg', color:'#7a9a3a'},
+  {id:'peppers', name:'Roasted peppers', cat:'veg', color:'#d9722e'},
+  {id:'rocket', name:'Rocket', cat:'veg', color:'#5c7a3a'},
+  {id:'mayo', name:'Mayo', cat:'sauce', color:'#f5eddb'},
+  {id:'mustard', name:'Mustard', cat:'sauce', color:'#d9a52c'},
+  {id:'chipotle', name:'Chipotle mayo', cat:'sauce', color:'#c9603a'},
+  {id:'pesto', name:'Pesto', cat:'sauce', color:'#6b7a3a'},
+  {id:'vinaigrette', name:'Vinaigrette', cat:'sauce', color:'#b89a5a'},
+  {id:'bacon', name:'Bacon', cat:'extra', color:'#8a3a2a'},
+  {id:'crispyonions', name:'Crispy onions', cat:'extra', color:'#c98a3a'},
+  {id:'avocado', name:'Avocado', cat:'extra', color:'#6a8a4a'},
+];
+const CAT_ORDER = ['meat','cheese','veg','sauce','extra'];
+const CAT_LABEL = {meat:'Fillings', cheese:'Cheese', veg:'Veg', sauce:'Sauce', extra:'Extras'};
+const CUSTOMER_NAMES = ['Priya','Jamal','Sofia','Ollie','Nadia','Ben','Freya','Kai','Maya','Theo','Ruth','Dexter','Anya','Marcus','Lola','Sanjay','Elle','Rico'];
+const RULES = [
+  {id:'sauce_first', text:'Sauce goes straight onto the bottom bun', check:(layers)=> layers.length>0 && layers[0].cat==='sauce'},
+  {id:'two_cheese', text:'Two different cheeses, no less', check:(layers)=> new Set(layers.filter(l=>l.cat==='cheese').map(l=>l.id)).size>=2},
+  {id:'veg_only', text:'Keep it veg — no meat on this one', check:(layers)=> !layers.some(l=>l.cat==='meat')},
+  {id:'bacon_top', text:'Bacon is the last thing in before the lid', check:(layers)=> layers.length>0 && layers[layers.length-1].id==='bacon'},
+  {id:'double_pickles', text:'Double up on the pickles', check:(layers)=> layers.filter(l=>l.id==='pickles').length>=2},
+];
+function ingr(id){ return INGREDIENTS.find(i=>i.id===id); }
+function breadName(id){ const b=BREADS.find(b=>b.id===id); return b?b.name:id; }
+function ruleById(id){ return RULES.find(r=>r.id===id); }
+
+function genTicket(seedStr){
+  const rng = makeRng(seedStr);
+  const pool = rngShuffle(rng, INGREDIENTS);
+  const want = pool.slice(0,3).map(i=>i.id);
+  const avoid = pool.find(i=>!want.includes(i.id)).id;
+  return {
+    customer: rngPick(rng, CUSTOMER_NAMES),
+    bread: rngPick(rng, BREADS).id,
+    want, avoid,
+    ruleId: rngPick(rng, RULES).id,
+  };
+}
+function ticketForRound(cfg, round){ return genTicket(cfg.salt + ':' + round); }
+
+function scoreBuild(ticket, breadId, layers, elapsedMs, timeLimitSec){
+  const breadOk = breadId === ticket.bread;
+  const wantHits = ticket.want.filter(w => layers.some(l=>l.id===w));
+  const avoidOk = !layers.some(l=>l.id===ticket.avoid);
+  const rule = ruleById(ticket.ruleId);
+  const ruleOk = !!(rule && rule.check(layers, breadId));
+  const counts = {};
+  layers.forEach(l=> counts[l.id]=(counts[l.id]||0)+1);
+  const overStacked = Object.values(counts).some(c=>c>2) || layers.length>9;
+  const tidy = !overStacked;
+  const completed = breadOk && wantHits.length===3 && avoidOk;
+  const remaining = Math.max(0, timeLimitSec*1000 - elapsedMs);
+  const remFrac = timeLimitSec>0 ? remaining/(timeLimitSec*1000) : 0;
+  const speed = completed ? Math.round(20*remFrac) : 0;
+  const total = (breadOk?25:0) + wantHits.length*15 + (avoidOk?20:0) + (ruleOk?25:0) + (tidy?15:8) + speed;
+  return {breadOk, wantHits:wantHits.length, avoidOk, ruleOk, tidy, completed, speed, total, elapsedMs};
+}
+
+/* ---------------- URL config encode/decode ---------------- */
+function encodeCfg(cfg){ return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(cfg))))); }
+function decodeCfg(str){
+  try{ return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(str))))); }
+  catch(e){ return null; }
+}
+function playerLink(cfg){
+  const base = location.origin + location.pathname;
+  return base + '?t=' + encodeCfg(cfg);
+}
+function defaultAdvance(n){
+  const table = {1:[1],2:[3,1],3:[5,3,1],4:[8,4,2,1],5:[10,6,3,2,1],6:[12,8,5,3,2,1]};
+  return table[n] || Array.from({length:n},(_,i)=> i===n-1?1: n-i+1);
+}
+function encodeLB(payload){ return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload))))); }
+function decodeLB(str){
+  try{ return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(str))))); }
+  catch(e){ return null; }
+}
+function lbLink(payload){
+  const base = location.origin + location.pathname;
+  return base + '?lb=' + encodeLB(payload);
+}
+function encodeGo(p){ return encodeURIComponent(btoa(JSON.stringify(p))); }
+function decodeGo(s){ try{ return JSON.parse(atob(decodeURIComponent(s))); }catch(e){ return null; } }
+function buildGoLink(cfg, round, goAt){
+  const base = location.origin + location.pathname;
+  return base + '?t=' + encodeCfg(cfg) + '&go=' + encodeGo({r:round, at:goAt});
+}
+function medalFor(i){ return i===0?'🥇':i===1?'🥈':i===2?'🥉':String(i+1); }
+function renderLeaderboardRows(container, entries, cutN, isFinal){
+  container.innerHTML='';
+  if(entries.length===0){ container.appendChild(el('div',{class:'muted'}, 'No results yet.')); return; }
+  entries.forEach(([name,score],i)=>{
+    if(cutN && i===cutN && !isFinal){ container.appendChild(el('div',{class:'cut-divider'}, `top ${cutN} advance`)); }
+    container.appendChild(el('div',{class:'lb-row'},[
+      el('span',{class:'lb-rank'}, medalFor(i)),
+      el('span',{class:'lb-name'}, name),
+      el('span',{class:'lb-score'}, `${score} pts`),
+    ]));
+  });
+}
+
+/* ---------------- app state ---------------- */
+const app = $('#app');
+const S = { cfg:null, isPlayer:false };
+
+function topbar(label){
+  return el('div',{class:'topbar'},[
+    el('div',{class:'brand'}, 'The Counter'),
+    el('div',{class:'role-tag'}, label || ''),
+  ]);
+}
+
+/* ================= MODERATOR ================= */
+function renderModSetup(){
+  app.innerHTML=''; app.appendChild(topbar('moderator · setup'));
+  let numRounds = 3;
+  let advance = defaultAdvance(3);
+
+  const card = el('div',{class:'card stack-v'});
+  card.appendChild(el('h2',{}, 'Set up the tournament'));
+  card.appendChild(el('p',{class:'muted'}, "No sign-ins, no app to install — the rules get baked straight into the link you share."));
+
+  const nameField = el('div',{class:'field'},[ el('label',{},'Tournament name'), el('input',{type:'text', id:'f-name', value:'The Counter — Team Shift'}) ]);
+  const timeField = el('div',{class:'field'},[ el('label',{},'Time per round'), el('input',{type:'number', id:'f-time', value:'90', min:'20', max:'300'}), el('div',{class:'hint'},'Seconds each player gets once you say go.') ]);
+  const roundsField = el('div',{class:'field'},[ el('label',{},'Number of rounds'), el('input',{type:'number', id:'f-rounds', value:'3', min:'1', max:'6'}) ]);
+  const advanceWrap = el('div',{class:'field'},[ el('label',{},'Who advances each round'), el('div',{id:'advance-fields', class:'stack-v'}) ]);
+
+  function renderAdvanceFields(){
+    const wrap = advanceWrap.querySelector('#advance-fields');
+    wrap.innerHTML='';
+    advance = advance.length===numRounds ? advance : defaultAdvance(numRounds);
+    for(let i=0;i<numRounds;i++){
+      const isLast = i===numRounds-1;
+      const row = el('div',{class:'row'},[
+        el('div',{style:'flex:2;align-self:center;font-size:14px;'}, `Round ${i+1} — advance top`),
+        el('input',{type:'number', min:'1', max:'999', value:String(advance[i]), oninput:(e)=>{ advance[i]=Math.max(1, parseInt(e.target.value||'1',10)); }}),
+      ]);
+      if(isLast) row.appendChild(el('span',{class:'pill olive'}, 'winner'));
+      wrap.appendChild(row);
+    }
+  }
+  renderAdvanceFields();
+  roundsField.querySelector('input').addEventListener('input',(e)=>{
+    numRounds = Math.max(1, Math.min(6, parseInt(e.target.value||'1',10)));
+    advance = defaultAdvance(numRounds);
+    renderAdvanceFields();
+  });
+
+  card.appendChild(nameField); card.appendChild(timeField); card.appendChild(roundsField); card.appendChild(advanceWrap);
+
+  card.appendChild(el('button',{class:'primary', style:'width:100%;margin-top:6px;', onclick:()=>{
+    const cfg = {
+      v:1,
+      name: $('#f-name').value.trim() || 'The Counter — Team Shift',
+      timePerRound: Math.max(20, parseInt($('#f-time').value||'90',10)),
+      numRounds, advance: advance.slice(0,numRounds),
+      salt: randId(10),
+    };
+    S.cfg = cfg;
+    S.mod = { round:0, stillIn:null, results:{}, joined:{}, subs:new Set() }; // results[round] = {name: score}
+    renderModDashboard();
+  }}, 'Create tournament'));
+
+  app.appendChild(card);
+}
+
+function renderModDashboard(){
+  app.innerHTML=''; app.appendChild(topbar('moderator'));
+  const cfg = S.cfg, m = S.mod;
+  const link = playerLink(cfg);
+  if(!m.subs) m.subs = new Set();
+
+  if(!m.subs.has('__join')){
+    m.subs.add('__join');
+    mqttSub(topicJoin(cfg.salt), (data)=>{
+      if(!data || !data.name) return;
+      m.joined[data.name] = data.at || Date.now();
+      renderModDashboard();
+    });
+  }
+
+  const top = el('div',{class:'card stack-v'});
+  top.appendChild(el('h2',{}, cfg.name));
+  top.appendChild(el('div',{class:'row'},[
+    el('span',{class:'pill'}, `${cfg.timePerRound}s rounds`),
+    el('span',{class:'pill olive'}, `${cfg.numRounds} round${cfg.numRounds>1?'s':''}`),
+    el('span',{class:'pill', id:'live-badge'}, mqttReady ? '🟢 live' : '🟡 connecting'),
+  ]));
+  top.appendChild(el('div',{class:'field'},[
+    el('label',{}, 'Send this link to your team — anyone can open it, no account needed'),
+    el('div',{class:'linkbox'},[
+      el('input',{type:'text', readonly:'true', value:link, onclick:(e)=>e.target.select()}),
+      el('button',{class:'small', onclick:(e)=> copyText(link, e.target)}, 'Copy'),
+    ]),
+  ]));
+  const joinedNames = Object.keys(m.joined);
+  top.appendChild(el('div',{class:'field'},[
+    el('label',{}, `Players in the lineup (${joinedNames.length})`),
+    joinedNames.length===0
+      ? el('div',{class:'empty'}, 'Share the link — names will appear here the moment people join.')
+      : el('div',{}, joinedNames.map(n=> el('span',{class:'pill', style:'margin:2px 4px 2px 0;display:inline-block;'}, n))),
+  ]));
+  app.appendChild(top);
+
+  if(m.round >= cfg.numRounds){
+    renderModComplete(cfg, m);
+    return;
+  }
+
+  const roundNum = m.round + 1;
+  const ticket = ticketForRound(cfg, roundNum);
+  const card = el('div',{class:'card stack-v'});
+  card.appendChild(el('h2',{}, `Round ${roundNum} of ${cfg.numRounds}`));
+  if(m.stillIn) card.appendChild(el('p',{class:'muted'}, `Still in it: ${m.stillIn.join(', ')}`));
+  else card.appendChild(el('p',{class:'muted'}, 'Everyone plays this round.'));
+
+  card.appendChild(el('div',{class:'ticket'},[
+    el('div',{class:'t-head'},[el('span',{},'ORDER — for reference'), el('span',{}, breadName(ticket.bread))]),
+    el('div',{class:'t-customer'}, ticket.customer),
+    el('div',{class:'t-line'}, ['Wants: ', el('b',{}, ticket.want.map(w=>ingr(w).name).join(', '))]),
+    el('div',{class:'t-line'}, ['No: ', el('b',{}, ingr(ticket.avoid).name)]),
+    el('div',{class:'t-rule'}, ruleById(ticket.ruleId).text),
+  ]));
+  card.appendChild(el('p',{class:'hint'}, `Everyone in the lineup gets this ticket automatically the second you hit Go.`));
+
+  const goWrap = el('div',{class:'field'});
+  goWrap.appendChild(el('label',{}, 'Go — start it live'));
+  goWrap.appendChild(el('div',{class:'row'},[
+    el('input',{type:'number', id:'lead-sec', value:'5', min:'0', max:'30'}),
+    el('button',{class:'primary', onclick:(e)=>{
+      const lead = Math.max(0, parseInt($('#lead-sec').value||'5',10));
+      const goAt = Date.now() + lead*1000;
+      mqttPub(topicGo(cfg.salt), {r:roundNum, at:goAt});
+      const btnLabel = e.target.textContent; e.target.textContent='Sent!'; setTimeout(()=>e.target.textContent=btnLabel, 1200);
+      if(window.__modCountdownTimer) clearInterval(window.__modCountdownTimer);
+      window.__modCountdownTimer = setInterval(()=>{
+        const c = document.getElementById('mod-countdown');
+        if(!c){ clearInterval(window.__modCountdownTimer); return; }
+        const remaining = goAt - Date.now();
+        if(remaining<=0){ c.textContent='GO!'; c.classList.add('low'); clearInterval(window.__modCountdownTimer); return; }
+        c.textContent = 'Starts in ' + fmtClock(remaining);
+      }, 200);
+    }}, `Go — start Round ${roundNum}`),
+  ]));
+  goWrap.appendChild(el('div',{id:'mod-countdown', class:'timer', style:'margin-top:8px;'}, ''));
+  goWrap.appendChild(el('p',{class:'hint'}, "Everyone already in the lineup gets this instantly — no link to paste. Ingredients unlock the second it hits zero, for everyone at once."));
+  goWrap.appendChild(el('details',{style:'margin-top:8px;'},[
+    el('summary',{style:'font-size:12px;color:var(--ink-light);cursor:pointer;'}, "Backup: get a go-link instead (if live sync isn't working for someone)"),
+    el('button',{class:'small ghost', style:'margin-top:8px;', onclick:(e)=>{
+      const lead = Math.max(3, parseInt(($('#lead-sec')||{value:5}).value||'5',10));
+      const goAt = Date.now() + Math.max(lead,5)*1000;
+      copyText(buildGoLink(cfg, roundNum, goAt), e.target);
+    }}, 'Copy go-link'),
+  ]));
+  card.appendChild(goWrap);
+
+  const defaultN = cfg.advance[m.round];
+  const isFinal = roundNum === cfg.numRounds;
+
+  const resultsWrap = el('div',{class:'field'});
+  resultsWrap.appendChild(el('label',{}, 'Results — arrive automatically as people serve'));
+  const rows = m.results[roundNum] || (m.results[roundNum]={});
+  const rtopic = topicResult(cfg.salt, roundNum);
+  if(!m.subs.has(rtopic)){
+    m.subs.add(rtopic);
+    mqttSub(rtopic, (data)=>{
+      if(!data || !data.name || typeof data.total !== 'number') return;
+      const rmap = m.results[data.round] || (m.results[data.round]={});
+      rmap[data.name] = data.total;
+      if(data.round === roundNum) renderModDashboard();
+    });
+  }
+  const tableBox = el('div',{id:'results-table'});
+  function currentCutN(){ const i = document.getElementById('adv-n'); return i ? (parseInt(i.value,10)||defaultN) : defaultN; }
+  function renderTable(){
+    const entries = Object.entries(rows).sort((a,b)=>b[1]-a[1]);
+    renderLeaderboardRows(tableBox, entries, currentCutN(), isFinal);
+    if(entries.length>0){
+      // add remove buttons onto the just-rendered rows, aligned by name
+      Array.from(tableBox.querySelectorAll('.lb-row')).forEach(row=>{
+        const nameEl = row.querySelector('.lb-name');
+        if(!nameEl) return;
+        row.appendChild(el('button',{class:'small ghost', onclick:()=>{ delete rows[nameEl.textContent]; renderTable(); }}, '✕'));
+      });
+    }
+  }
+  renderTable();
+  resultsWrap.appendChild(tableBox);
+  resultsWrap.appendChild(el('div',{class:'row', style:'margin-top:6px;'},[
+    el('button',{class:'small ghost', onclick:()=>{
+      const entries = Object.entries(rows).sort((a,b)=>b[1]-a[1]);
+      renderModBigScreen(cfg, m, roundNum, entries, currentCutN(), isFinal);
+    }}, 'Show big-screen view'),
+    el('button',{class:'small', onclick:(e)=>{
+      const entries = Object.entries(rows).sort((a,b)=>b[1]-a[1]);
+      const payload = {v:1, name:cfg.name, round:roundNum, total:cfg.numRounds, entries, cut: isFinal?null:currentCutN(), final:isFinal, winner: isFinal && entries[0] ? entries[0][0] : null};
+      copyText(lbLink(payload), e.target);
+    }}, 'Copy leaderboard link'),
+  ]));
+
+  resultsWrap.appendChild(el('div',{class:'field'},[
+    el('label',{}, 'Backup: add or fix a score by hand'),
+    el('div',{class:'row'},[
+      el('input',{type:'text', id:'add-name', placeholder:'Name'}),
+      el('input',{type:'number', id:'add-score', placeholder:'Score'}),
+      el('button',{class:'small', onclick:()=>{
+        const n = $('#add-name').value.trim(); const s = parseInt($('#add-score').value||'0',10);
+        if(!n) return;
+        rows[n]=s; $('#add-name').value=''; $('#add-score').value='';
+        renderTable();
+      }}, 'Add'),
+    ]),
+  ]));
+
+  resultsWrap.appendChild(el('div',{class:'field'},[
+    el('label',{}, 'Or paste several lines at once (Name — 120 pts)'),
+    el('textarea',{id:'paste-box', placeholder:'Tayo — R1 — 118pts\nSam — 96 pts'}),
+    el('button',{class:'small', style:'margin-top:6px;', onclick:()=>{
+      const text = $('#paste-box').value;
+      text.split('\n').forEach(line=>{
+        const m2 = line.match(/(\d+)\s*pts?/i);
+        if(!m2) return;
+        const score = parseInt(m2[1],10);
+        let name = line.slice(0, m2.index).replace(/[—–\-:]+$/,'').trim();
+        name = name.replace(/\bR\d+\b/i,'').trim();
+        if(name) rows[name]=score;
+      });
+      $('#paste-box').value='';
+      renderTable();
+    }}, 'Parse & add'),
+  ]));
+
+  card.appendChild(resultsWrap);
+
+  card.appendChild(el('div',{class:'row', style:'margin-top:10px;'},[
+    el('div',{style:'flex:2;align-self:center;'}, isFinal ? 'Crown the winner (top)' : 'Advance top'),
+    el('input',{type:'number', id:'adv-n', min:'1', value:String(defaultN), oninput:renderTable}),
+  ]));
+  card.appendChild(el('button',{class:'primary', style:'width:100%;margin-top:10px;', onclick:()=>{
+    const entries = Object.entries(rows).sort((a,b)=>b[1]-a[1]);
+    if(entries.length===0){ return; }
+    const n = Math.max(1, Math.min(entries.length, parseInt($('#adv-n').value||String(defaultN),10)));
+    const advancing = entries.slice(0,n).map(e=>e[0]);
+    m.stillIn = advancing;
+    if(isFinal){ m.winner = advancing[0]; m.finalOrder = entries.map(e=>e[0]); }
+    m.round += 1;
+    renderModDashboard();
+  }}, isFinal ? 'Crown the winner' : 'Advance & continue'));
+
+  app.appendChild(card);
+}
+
+function renderModBigScreen(cfg, m, roundNum, entries, cutN, isFinal){
+  app.innerHTML=''; app.appendChild(topbar('moderator · big screen'));
+  const card = el('div',{class:'card lb-screen stack-v'});
+  card.appendChild(el('h2',{}, isFinal ? 'Final standings' : `Round ${roundNum} — leaderboard`));
+  const listWrap = el('div',{class:'lb-big'});
+  renderLeaderboardRows(listWrap, entries, cutN, isFinal);
+  card.appendChild(listWrap);
+  card.appendChild(el('button',{class:'ghost', style:'width:100%;margin-top:16px;', onclick:renderModDashboard}, 'Back to results entry'));
+  app.appendChild(card);
+}
+
+function renderModComplete(cfg, m){
+  const card = el('div',{class:'card trophy-wrap'});
+  card.appendChild(el('span',{class:'trophy-emoji'}, '🏆'));
+  card.appendChild(el('h2',{}, m.winner || 'Winner'));
+  card.appendChild(el('p',{class:'muted'}, `Top of the board after ${cfg.numRounds} round${cfg.numRounds>1?'s':''}.`));
+  const rest = (m.finalOrder||[]).slice(1);
+  card.appendChild(el('div',{}, rest.map((name,i)=> el('div',{class:'lb-row'},[ el('span',{class:'lb-rank'}, String(i+2)), el('span',{class:'lb-name'}, name) ]))));
+  card.appendChild(el('button',{style:'width:100%;margin-top:16px;', onclick:(e)=>{
+    let text = `${cfg.name} — final standings\n1. ${m.winner} 🏆\n`;
+    rest.forEach((n,i)=> text += `${i+2}. ${n}\n`);
+    copyText(text, e.target);
+  }}, 'Copy standings for team chat'));
+  card.appendChild(el('button',{class:'small', style:'width:100%;margin-top:8px;', onclick:(e)=>{
+    const entries = (m.finalOrder||[]).map(n=> [n, (m.results[cfg.numRounds]||{})[n] ?? 0]);
+    const payload = {v:1, name:cfg.name, round:cfg.numRounds, total:cfg.numRounds, entries, cut:null, final:true, winner:m.winner};
+    copyText(lbLink(payload), e.target);
+  }}, 'Copy leaderboard link (for players)'));
+  card.appendChild(el('button',{class:'ghost', style:'width:100%;margin-top:8px;', onclick:renderModSetup}, 'Start a new tournament'));
+  app.appendChild(card);
+}
+
+/* ================= PLAYER ================= */
+function renderPlayerJoin(cfg){
+  app.innerHTML=''; app.appendChild(topbar(cfg.name));
+  const card = el('div',{class:'card stack-v'});
+  card.appendChild(el('h2',{}, "What's your name?"));
+  card.appendChild(el('div',{class:'field'},[ el('label',{},'Your name'), el('input',{type:'text', id:'p-name', maxlength:'24'}) ]));
+  card.appendChild(el('p',{class:'hint'}, `Each round runs for ${cfg.timePerRound}s. The moderator starts it for everyone at once — you'll see it happen live, nothing to click to get ready.`));
+  const err = el('div',{style:'color:var(--red);font-weight:700;display:none;'});
+  card.appendChild(err);
+  card.appendChild(el('button',{class:'primary', style:'width:100%;', onclick:()=>{
+    const name = $('#p-name').value.trim();
+    if(!name){ err.style.display='block'; err.textContent='Type your name first.'; return; }
+    S.player = { name };
+    mqttPub(topicJoin(cfg.salt), {name, at:Date.now()});
+    if(!S.goSubscribed){
+      S.goSubscribed = true;
+      mqttSub(topicGo(cfg.salt), (data)=>{
+        if(!data || typeof data.r !== 'number') return;
+        if(S.lastGoRound === data.r) return;
+        S.lastGoRound = data.r;
+        renderPlayerSyncedBuild(cfg, data.r, data.at);
+      });
+    }
+    renderPlayerWaiting(cfg);
+  }}, "Join the lineup"));
+  app.appendChild(card);
+}
+
+function renderPlayerWaiting(cfg){
+  app.innerHTML=''; app.appendChild(topbar(S.player.name));
+  const card = el('div',{class:'card stack-v center'});
+  card.appendChild(el('h2',{}, "You're in"));
+  card.appendChild(el('p',{class:'muted'}, "Waiting for the moderator to hit Go — this switches automatically the second they do, nothing to click."));
+  card.appendChild(el('span',{class:'pill', id:'live-badge'}, mqttReady ? '🟢 live' : '🟡 connecting'));
+  app.appendChild(card);
+}
+
+function renderPlayerBuild(cfg){
+  app.innerHTML=''; app.appendChild(topbar(S.player.name));
+  const round = S.player.round;
+  const ticket = ticketForRound(cfg, round);
+  const bs = { breadId:null, layers:[] };
+  let startedAt = null, submitted=false, timerHandle=null;
+
+  const card = el('div',{class:'card stack-v'});
+
+  const timerRow = el('div',{class:'timer-wrap'});
+  const timerText = el('div',{class:'timer'}, `${cfg.timePerRound}s`);
+  const startBtn = el('button',{class:'primary', onclick:()=>{
+    if(startedAt) return;
+    startedAt = Date.now();
+    startBtn.textContent = 'Cooking…';
+    startBtn.disabled = true;
+    timerHandle = setInterval(()=>{
+      const remaining = cfg.timePerRound*1000 - (Date.now()-startedAt);
+      timerText.textContent = fmtClock(remaining);
+      timerText.classList.toggle('low', remaining<10000);
+      if(remaining<=0 && !submitted){ doSubmit(); }
+    }, 200);
+  }}, 'Start my clock — go!');
+  timerRow.appendChild(timerText); timerRow.appendChild(startBtn);
+  card.appendChild(timerRow);
+  card.appendChild(el('p',{class:'hint'}, `Round ${round} · ${S.player.name} · click Start together on "go"`));
+
+  card.appendChild(el('div',{class:'ticket'},[
+    el('div',{class:'t-head'},[el('span',{},'ORDER'), el('span',{}, breadName(ticket.bread))]),
+    el('div',{class:'t-customer'}, ticket.customer),
+    el('div',{class:'t-line'}, ['Wants: ', el('b',{}, ticket.want.map(w=>ingr(w).name).join(', '))]),
+    el('div',{class:'t-line'}, ['No: ', el('b',{}, ingr(ticket.avoid).name)]),
+    el('div',{class:'t-rule'}, ruleById(ticket.ruleId).text),
+  ]));
+
+  card.appendChild(el('div',{class:'field'},[
+    el('label',{},'Bread'),
+    el('div',{class:'bread-row', id:'bread-row'}, BREADS.map(b=> el('button',{class:'bread-btn', onclick:(e)=>{
+      bs.breadId=b.id;
+      document.querySelectorAll('#bread-row .bread-btn').forEach(x=>x.classList.remove('chosen'));
+      e.target.classList.add('chosen');
+    }}, b.name))),
+  ]));
+
+  const shell = el('div',{class:'build-shell'});
+  shell.appendChild(el('div',{class:'bun-top'}));
+  const stackZone = el('div',{class:'stack-zone'});
+  shell.appendChild(stackZone);
+  shell.appendChild(el('div',{class:'bun-bottom'}));
+  card.appendChild(el('div',{class:'field'},[ el('label',{},'Your stack — click a layer to pull it off'), shell ]));
+
+  function renderStack(){
+    stackZone.innerHTML='';
+    if(bs.layers.length===0){ stackZone.appendChild(el('div',{class:'muted', style:'text-align:center;padding:10px;font-size:13px;'}, 'Nothing on it yet')); return; }
+    bs.layers.forEach((l,idx)=>{
+      const ig = ingr(l.id);
+      stackZone.appendChild(el('div',{class:'layer '+ig.cat, style:`background:${ig.color};`, onclick:()=>{ bs.layers.splice(idx,1); renderStack(); }}, ig.cat==='sauce'?'':ig.name));
+    });
+  }
+  renderStack();
+
+  const menu = el('div',{});
+  CAT_ORDER.forEach(cat=>{
+    menu.appendChild(el('div',{class:'cat-heading'}, CAT_LABEL[cat]));
+    const grid = el('div',{class:'ingr-menu'});
+    INGREDIENTS.filter(i=>i.cat===cat).forEach(i=>{
+      grid.appendChild(el('button',{class:'ingr-btn', style:`background:${i.color};`, onclick:()=>{ bs.layers.push({id:i.id, cat:i.cat}); renderStack(); }}, [i.name]));
+    });
+    menu.appendChild(grid);
+  });
+  card.appendChild(el('div',{class:'field'},[el('label',{},'Ingredients'), menu]));
+
+  const serveBtn = el('button',{class:'primary', style:'width:100%;margin-top:14px;', onclick:()=>doSubmit()}, 'Serve (Enter)');
+  card.appendChild(serveBtn);
+
+  app.appendChild(card);
+
+  document.onkeydown = (e)=>{
+    if(!startedAt || submitted) return;
+    if(e.key==='Enter'){ e.preventDefault(); doSubmit(); }
+    if(e.key==='Backspace'){ e.preventDefault(); if(bs.layers.length){ bs.layers.pop(); renderStack(); } }
+  };
+
+  function doSubmit(){
+    if(submitted) return;
+    submitted = true;
+    if(timerHandle) clearInterval(timerHandle);
+    document.onkeydown = null;
+    const elapsed = startedAt ? Math.min(cfg.timePerRound*1000, Math.max(0, Date.now()-startedAt)) : cfg.timePerRound*1000;
+    const result = scoreBuild(ticket, bs.breadId, bs.layers, elapsed, cfg.timePerRound);
+    renderPlayerResult(cfg, round, result);
+  }
+}
+
+function renderPlayerResult(cfg, round, result){
+  mqttPub(topicResult(cfg.salt, round), {round, name:S.player.name, total:result.total, at:Date.now()});
+  app.innerHTML=''; app.appendChild(topbar(S.player.name));
+  const card = el('div',{class:'card stack-v center'});
+  card.appendChild(el('h2',{}, 'Order served'));
+  card.appendChild(el('div',{class:'score-breakdown'},[
+    el('div',{class:'k'},'Bread'), el('div',{class:'v'}, result.breadOk?'✓':'✗'),
+    el('div',{class:'k'},'Items wanted'), el('div',{class:'v'}, `${result.wantHits}/3`),
+    el('div',{class:'k'},'Left off what they hated'), el('div',{class:'v'}, result.avoidOk?'✓':'✗'),
+    el('div',{class:'k'},'House rule'), el('div',{class:'v'}, result.ruleOk?'✓':'✗'),
+    el('div',{class:'k'},'Tidy build'), el('div',{class:'v'}, result.tidy?'✓':'✗'),
+    el('div',{class:'k'},'Speed bonus'), el('div',{class:'v'}, `+${result.speed}`),
+  ]));
+  card.appendChild(el('div',{style:'margin-top:10px;font-family:DM Mono,monospace;font-size:28px;'}, `${result.total} pts`));
+  const line = `${S.player.name} — R${round} — ${result.total}pts`;
+  card.appendChild(el('p',{class:'hint'}, "Sent straight to the moderator's board. If it doesn't show up there, copy this as a backup:"));
+  card.appendChild(el('div',{class:'resultline'}, line));
+  card.appendChild(el('button',{class:'small', onclick:(e)=> copyText(line, e.target)}, 'Copy my result'));
+  card.appendChild(el('button',{class:'primary', style:'width:100%;margin-top:14px;', onclick:()=>renderPlayerWaiting(cfg)}, 'Waiting for next round'));
+  app.appendChild(card);
+}
+
+function renderLeaderboardView(payload){
+  app.innerHTML=''; app.appendChild(topbar(payload.final ? 'final standings' : `round ${payload.round} of ${payload.total}`));
+  const card = el('div',{class:'card lb-screen stack-v'});
+  if(payload.final){
+    card.appendChild(el('div',{class:'trophy-wrap', style:'padding:6px 0 0;'},[
+      el('span',{class:'trophy-emoji'}, '🏆'),
+      el('h2',{}, payload.winner || payload.name),
+    ]));
+  } else {
+    card.appendChild(el('h2',{}, payload.name));
+  }
+  const listWrap = el('div',{class:'lb-big'});
+  renderLeaderboardRows(listWrap, payload.entries, payload.cut, payload.final);
+  card.appendChild(listWrap);
+  app.appendChild(card);
+}
+
+function renderPlayerSyncedJoin(cfg, goPayload){
+  app.innerHTML=''; app.appendChild(topbar(cfg.name));
+  const card = el('div',{class:'card stack-v'});
+  card.appendChild(el('h2',{}, `Round ${goPayload.r} — locked and loaded`));
+  card.appendChild(el('p',{class:'muted'}, "The moderator controls when this round starts. Enter your name — your ingredients unlock automatically the moment it's go time."));
+  card.appendChild(el('div',{class:'field'},[ el('label',{},'Your name'), el('input',{type:'text', id:'p-name', maxlength:'24'}) ]));
+  const err = el('div',{style:'color:var(--red);font-weight:700;display:none;'});
+  card.appendChild(err);
+  card.appendChild(el('button',{class:'primary', style:'width:100%;', onclick:()=>{
+    const name = $('#p-name').value.trim();
+    if(!name){ err.style.display='block'; err.textContent='Type your name first.'; return; }
+    S.player = {name, round: goPayload.r};
+    renderPlayerSyncedBuild(cfg, goPayload.r, goPayload.at);
+  }}, 'Ready'));
+  app.appendChild(card);
+}
+
+function renderPlayerSyncedBuild(cfg, round, goAt){
+  app.innerHTML=''; app.appendChild(topbar(S.player.name));
+  const ticket = ticketForRound(cfg, round);
+  const bs = {breadId:null, layers:[]};
+  let submitted=false, unlocked=false, timerHandle=null;
+
+  const card = el('div',{class:'card stack-v'});
+  const timerRow = el('div',{class:'timer-wrap'});
+  const timerText = el('div',{class:'timer'}, '');
+  timerRow.appendChild(timerText);
+  card.appendChild(timerRow);
+  card.appendChild(el('p',{class:'hint'}, `Round ${round} · ${S.player.name} · starts automatically — nothing to click`));
+
+  card.appendChild(el('div',{class:'ticket'},[
+    el('div',{class:'t-head'},[el('span',{},'ORDER'), el('span',{}, breadName(ticket.bread))]),
+    el('div',{class:'t-customer'}, ticket.customer),
+    el('div',{class:'t-line'}, ['Wants: ', el('b',{}, ticket.want.map(w=>ingr(w).name).join(', '))]),
+    el('div',{class:'t-line'}, ['No: ', el('b',{}, ingr(ticket.avoid).name)]),
+    el('div',{class:'t-rule'}, ruleById(ticket.ruleId).text),
+  ]));
+
+  const lockNote = el('div',{class:'empty'}, 'Ingredients unlock the second the clock starts.');
+  const buildArea = el('div',{});
+  card.appendChild(lockNote);
+  card.appendChild(buildArea);
+  app.appendChild(card);
+
+  function buildInterface(){
+    buildArea.innerHTML='';
+    buildArea.appendChild(el('div',{class:'field'},[
+      el('label',{},'Bread'),
+      el('div',{class:'bread-row', id:'bread-row'}, BREADS.map(b=> el('button',{class:'bread-btn', onclick:(e)=>{
+        bs.breadId=b.id;
+        document.querySelectorAll('#bread-row .bread-btn').forEach(x=>x.classList.remove('chosen'));
+        e.target.classList.add('chosen');
+      }}, b.name))),
+    ]));
+    const shell = el('div',{class:'build-shell'});
+    shell.appendChild(el('div',{class:'bun-top'}));
+    const stackZone = el('div',{class:'stack-zone'});
+    shell.appendChild(stackZone);
+    shell.appendChild(el('div',{class:'bun-bottom'}));
+    buildArea.appendChild(el('div',{class:'field'},[ el('label',{},'Your stack — click a layer to pull it off'), shell ]));
+
+    function renderStack(){
+      stackZone.innerHTML='';
+      if(bs.layers.length===0){ stackZone.appendChild(el('div',{class:'muted', style:'text-align:center;padding:10px;font-size:13px;'}, 'Nothing on it yet')); return; }
+      bs.layers.forEach((l,idx)=>{
+        const ig = ingr(l.id);
+        stackZone.appendChild(el('div',{class:'layer '+ig.cat, style:`background:${ig.color};`, onclick:()=>{ bs.layers.splice(idx,1); renderStack(); }}, ig.cat==='sauce'?'':ig.name));
+      });
+    }
+    renderStack();
+
+    const menu = el('div',{});
+    CAT_ORDER.forEach(cat=>{
+      menu.appendChild(el('div',{class:'cat-heading'}, CAT_LABEL[cat]));
+      const grid = el('div',{class:'ingr-menu'});
+      INGREDIENTS.filter(i=>i.cat===cat).forEach(i=>{
+        grid.appendChild(el('button',{class:'ingr-btn', style:`background:${i.color};`, onclick:()=>{ bs.layers.push({id:i.id, cat:i.cat}); renderStack(); }}, [i.name]));
+      });
+      menu.appendChild(grid);
+    });
+    buildArea.appendChild(el('div',{class:'field'},[el('label',{},'Ingredients'), menu]));
+    buildArea.appendChild(el('button',{class:'primary', style:'width:100%;margin-top:14px;', onclick:()=>doSubmit()}, 'Serve (Enter)'));
+
+    document.onkeydown = (e)=>{
+      if(submitted) return;
+      if(e.key==='Enter'){ e.preventDefault(); doSubmit(); }
+      if(e.key==='Backspace'){ e.preventDefault(); if(bs.layers.length){ bs.layers.pop(); renderStack(); } }
+    };
+  }
+
+  function doSubmit(){
+    if(submitted) return;
+    submitted = true;
+    if(timerHandle) clearInterval(timerHandle);
+    document.onkeydown = null;
+    const elapsed = Math.min(cfg.timePerRound*1000, Math.max(0, Date.now()-goAt));
+    const result = scoreBuild(ticket, bs.breadId, bs.layers, elapsed, cfg.timePerRound);
+    renderPlayerResult(cfg, round, result);
+  }
+
+  timerHandle = setInterval(()=>{
+    const now = Date.now();
+    if(now < goAt){
+      timerText.textContent = 'Starts in ' + fmtClock(goAt-now);
+      return;
+    }
+    if(!unlocked){ unlocked=true; lockNote.remove(); buildInterface(); }
+    const remaining = cfg.timePerRound*1000 - (now-goAt);
+    timerText.textContent = fmtClock(remaining);
+    timerText.classList.toggle('low', remaining<10000);
+    if(remaining<=0 && !submitted){ doSubmit(); }
+  }, 200);
+}
+
+/* ---------------- entry point ---------------- */
+function boot(){
+  const params = new URLSearchParams(location.search);
+  const lb = params.get('lb');
+  if(lb){
+    const payload = decodeLB(lb);
+    if(payload && payload.v===1){ renderLeaderboardView(payload); return; }
+  }
+  const t = params.get('t');
+  if(t){
+    const cfg = decodeCfg(t);
+    if(cfg && cfg.v===1){
+      const go = params.get('go');
+      if(go){
+        const goPayload = decodeGo(go);
+        if(goPayload){ renderPlayerSyncedJoin(cfg, goPayload); return; }
+      }
+      renderPlayerJoin(cfg); return;
+    }
+  }
+  renderModSetup();
+}
+boot();
+</script>
+</body>
+</html>
