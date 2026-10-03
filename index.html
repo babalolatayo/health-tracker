@@ -2,925 +2,493 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Counter — Tournament</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Mono:wght@400;500&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Daily Tracker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
-  :root{
-    --cream:#F1E7D0; --paper:#FBF6EA; --charcoal:#2A2420; --red:#B33A2E; --red-dark:#8f2e24;
-    --mustard:#DCA23A; --olive:#6E7A46; --ink-light:#6b5f52; --line:#D8C9A8; --white:#fffdf7;
-  }
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
-  body{
-    background:var(--cream);
-    background-image:radial-gradient(circle at 1px 1px, rgba(42,36,32,0.05) 1px, transparent 0);
-    background-size:18px 18px;
-    color:var(--charcoal); font-family:'Karla',sans-serif; min-height:100vh; -webkit-font-smoothing:antialiased;
-  }
-  @media (prefers-reduced-motion: reduce){ *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;} }
-  h1,h2,h3{font-family:'Anton',sans-serif; font-weight:400; letter-spacing:0.5px; margin:0;}
-  .app{max-width:640px;margin:0 auto;padding:20px 16px 60px;min-height:100vh;}
-  .topbar{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;padding-bottom:12px;border-bottom:3px solid var(--charcoal);}
-  .topbar .brand{font-family:'Anton',sans-serif;font-size:28px;color:var(--red);}
-  .topbar .role-tag{font-family:'DM Mono',monospace;font-size:12px;color:var(--ink-light);}
-  button{font-family:'Karla',sans-serif;font-weight:700;font-size:15px;border:2px solid var(--charcoal);background:var(--white);color:var(--charcoal);border-radius:10px;padding:12px 18px;cursor:pointer;}
-  button:hover{background:var(--charcoal);color:var(--white);}
-  button:focus-visible{outline:3px solid var(--red);outline-offset:2px;}
-  button.primary{background:var(--red);color:var(--white);border-color:var(--red-dark);}
-  button.primary:hover{background:var(--red-dark);}
-  button.ghost{background:transparent;}
-  button.small{padding:7px 12px;font-size:13px;border-radius:8px;}
-  button:disabled{opacity:0.45;cursor:not-allowed;}
-  .stack-v > * + *{margin-top:14px;}
-  .card{background:var(--paper);border:2px solid var(--charcoal);border-radius:14px;padding:20px;box-shadow:4px 4px 0 rgba(42,36,32,0.12);}
-  label{display:block;font-size:13px;font-weight:700;color:var(--ink-light);margin-bottom:6px;}
-  input[type=text], input[type=number], select, textarea{
-    width:100%;font-family:'Karla',sans-serif;font-size:16px;padding:10px 12px;
-    border:2px solid var(--line);border-radius:8px;background:var(--white);color:var(--charcoal);
-  }
-  textarea{font-family:'DM Mono',monospace;font-size:13px;min-height:70px;resize:vertical;}
-  input:focus-visible, select:focus-visible, textarea:focus-visible{outline:3px solid var(--red);outline-offset:1px;border-color:var(--red);}
-  .field + .field{margin-top:14px;}
-  .hint{font-size:12px;color:var(--ink-light);margin-top:4px;}
-  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
-  .row > *{flex:1;min-width:100px;}
-  .pill{display:inline-block;font-family:'DM Mono',monospace;font-size:12px;background:var(--mustard);color:var(--charcoal);border-radius:999px;padding:3px 10px;border:1.5px solid var(--charcoal);}
-  .pill.olive{background:var(--olive);color:var(--white);}
-  .pill.red{background:var(--red);color:var(--white);}
-  .center{text-align:center;}
-  .muted{color:var(--ink-light);}
-  .linkbox{display:flex;gap:8px;align-items:stretch;}
-  .linkbox input{font-family:'DM Mono',monospace;font-size:12.5px;}
-  .lb-row{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line);}
-  .lb-row:last-child{border-bottom:none;}
-  .lb-rank{font-family:'DM Mono',monospace;width:26px;color:var(--ink-light);font-size:14px;}
-  .lb-name{flex:1;font-weight:700;}
-  .lb-score{font-family:'DM Mono',monospace;font-size:15px;}
-  .ticket{background:var(--white);border:2px dashed var(--charcoal);border-radius:4px;padding:16px;font-family:'DM Mono',monospace;}
-  .ticket .t-head{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-light);margin-bottom:8px;}
-  .ticket .t-customer{font-family:'Anton',sans-serif;font-size:22px;margin-bottom:6px;}
-  .ticket .t-line{font-size:14px;margin:3px 0;}
-  .ticket .t-line b{color:var(--red);}
-  .ticket .t-rule{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:13px;color:var(--olive);font-weight:700;}
-  .timer-wrap{display:flex;align-items:center;justify-content:space-between;margin:14px 0;gap:10px;}
-  .timer{font-family:'DM Mono',monospace;font-size:34px;font-weight:500;}
-  .timer.low{color:var(--red);}
-  .bun-top, .bun-bottom{height:22px;background:var(--mustard);border:2px solid var(--charcoal);}
-  .bun-top{border-radius:40px 40px 8px 8px;}
-  .bun-bottom{border-radius:8px 8px 40px 40px;}
-  .build-shell{border:2px solid var(--charcoal);border-radius:10px;overflow:hidden;background:var(--white);}
-  .stack-zone{min-height:70px;padding:4px 10px;}
-  .layer{margin:3px 10px;border:1.5px solid rgba(42,36,32,0.35);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--charcoal);font-size:11px;font-weight:700;}
-  .layer:hover{filter:brightness(0.92);}
-  .layer.sauce{height:8px;border-radius:6px;font-size:0;}
-  .layer.veg{height:15px;border-radius:6px;clip-path:polygon(0% 30%,5% 0%,12% 30%,19% 0%,26% 30%,33% 0%,40% 30%,47% 0%,54% 30%,61% 0%,68% 30%,75% 0%,82% 30%,89% 0%,96% 30%,100% 15%,100% 100%,0% 100%);}
-  .layer.cheese{height:13px;border-radius:3px 10px 3px 10px;}
-  .layer.meat{height:17px;border-radius:5px;background-image:repeating-linear-gradient(-45deg, rgba(0,0,0,0.06) 0 4px, transparent 4px 8px);}
-  .layer.extra{height:14px;border-radius:8px;}
-  .ingr-menu{display:grid;grid-template-columns:repeat(auto-fill, minmax(108px,1fr));gap:8px;margin-top:10px;}
-  .ingr-btn{font-family:'Karla',sans-serif;font-size:12.5px;font-weight:700;text-align:left;border:1.5px solid var(--charcoal);border-radius:8px;padding:8px 9px;cursor:pointer;color:var(--charcoal);}
-  .bread-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
-  .bread-btn{flex:1;min-width:120px;}
-  .bread-btn.chosen{background:var(--charcoal);color:var(--white);}
-  .cat-heading{font-size:12px;font-weight:700;color:var(--ink-light);margin:16px 0 2px;}
-  .cat-heading:first-child{margin-top:0;}
-  .trophy-wrap{text-align:center;padding:30px 10px;}
-  .trophy-emoji{font-size:64px;display:block;margin-bottom:6px;}
-  .score-breakdown{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:13px;margin-top:10px;}
-  .score-breakdown .k{color:var(--ink-light);}
-  .score-breakdown .v{font-family:'DM Mono',monospace;text-align:right;}
-  .resultline{background:var(--white);border:1.5px dashed var(--line);border-radius:8px;padding:10px;font-family:'DM Mono',monospace;font-size:13px;margin-top:10px;word-break:break-word;}
-  footer.tip{margin-top:26px;font-size:12.5px;color:var(--ink-light);text-align:center;}
-  .lb-screen{max-width:760px;}
-  .cut-divider{display:flex;align-items:center;gap:10px;margin:10px 0;color:var(--ink-light);font-family:'DM Mono',monospace;font-size:11px;}
-  .cut-divider::before, .cut-divider::after{content:'';flex:1;border-top:1.5px dashed var(--line);}
-  .lb-big .lb-row{padding:16px 8px;font-size:19px;}
-  .lb-big .lb-rank{font-size:22px;width:42px;}
-  .lb-big .lb-score{font-size:19px;}
-  .lb-big h2{font-size:32px;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#f0f4f8;--surface:#ffffff;--surface2:#e8edf3;--border:#d1d9e6;
+  --text:#1a202c;--text2:#4a5568;--text3:#a0aec0;
+  --blue:#3b82f6;--blue-bg:rgba(59,130,246,0.08);
+  --green:#10b981;--green-bg:rgba(16,185,129,0.08);
+  --amber:#f59e0b;--amber-bg:rgba(245,158,11,0.08);
+  --red:#ef4444;--red-bg:rgba(239,68,68,0.08);
+  --purple:#8b5cf6;--purple-bg:rgba(139,92,246,0.08);
+  --teal:#14b8a6;--teal-bg:rgba(20,184,166,0.08);
+  --pink:#ec4899;--pink-bg:rgba(236,72,153,0.08);
+  --radius:14px;--radius-sm:10px;
+  --font:system-ui,-apple-system,'Segoe UI',sans-serif;
+  --tab-h:64px;
+}
+html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;-webkit-font-smoothing:antialiased;}
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 18px;position:sticky;top:0;z-index:20;}
+.header-inner{max-width:600px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;}
+.logo{display:flex;align-items:center;gap:10px;}
+.logo-icon{font-size:26px;}
+.logo-text{font-size:20px;font-weight:900;color:var(--text);letter-spacing:-0.02em;}
+.logo-text span{color:var(--blue);}
+.today-date{font-size:13px;color:var(--text2);font-weight:600;}
+.page{display:none;padding-bottom:calc(var(--tab-h)+16px);}
+.page.active{display:block;}
+.main{max-width:600px;margin:0 auto;padding:16px 14px 8px;}
+.tab-bar{position:fixed;bottom:0;left:0;right:0;height:var(--tab-h);background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom);}
+.tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:none;background:transparent;cursor:pointer;color:var(--text3);transition:color 0.2s;font-family:var(--font);-webkit-tap-highlight-color:transparent;}
+.tab-btn .ti{font-size:22px;transition:transform 0.2s;}
+.tab-btn .tl{font-size:11px;font-weight:700;letter-spacing:0.04em;}
+.tab-btn.active{color:var(--blue);}
+.tab-btn.active .ti{transform:translateY(-2px);}
+.section-head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--text2);margin:18px 0 10px;}
+.section-head::after{content:'';flex:1;height:1px;background:var(--border);}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;}
+.warning-banner{background:var(--red-bg);border:2px solid rgba(239,68,68,0.3);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;}
+.warning-icon{font-size:24px;flex-shrink:0;}
+.warning-body{flex:1;}
+.warning-title{font-size:14px;font-weight:800;color:var(--red);}
+.warning-text{font-size:12px;color:var(--text2);margin-top:2px;}
+.user-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.user-pill{padding:8px 16px;border-radius:999px;border:2px solid var(--border);background:var(--surface);font-size:14px;font-weight:700;font-family:var(--font);cursor:pointer;transition:all 0.15s;color:var(--text2);-webkit-tap-highlight-color:transparent;}
+.user-pill.active{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 2px 12px rgba(59,130,246,0.25);}
+.user-pill.has-warning{border-color:var(--red);color:var(--red);}
+.user-pill.has-warning.active{background:var(--red);border-color:var(--red);color:#fff;}
+.act-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.act-btn{background:var(--surface);border:2px solid var(--border);border-radius:var(--radius);padding:16px 8px;text-align:center;cursor:pointer;transition:all 0.15s;-webkit-tap-highlight-color:transparent;}
+.act-btn:hover{border-color:var(--blue);}
+.act-btn.logged{border-color:var(--green);background:var(--green-bg);}
+.act-btn.logged .act-icon{transform:scale(1.1);}
+.act-icon{font-size:32px;display:block;margin-bottom:6px;transition:transform 0.2s;}
+.act-name{font-size:12px;font-weight:700;color:var(--text);letter-spacing:0.02em;}
+.act-count{font-size:11px;color:var(--text3);margin-top:3px;}
+.act-btn.warning{border-color:var(--red);background:var(--red-bg);}
+.act-btn.warning .act-name{color:var(--red);}
+.log-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+.log-item:last-child{border-bottom:none;}
+.log-icon{font-size:22px;width:36px;text-align:center;flex-shrink:0;}
+.log-body{flex:1;}
+.log-title{font-size:14px;font-weight:700;color:var(--text);}
+.log-meta{font-size:12px;color:var(--text2);margin-top:1px;}
+.log-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:4px;transition:color 0.15s;}
+.log-del:hover{color:var(--red);}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;}
+.metric-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.metric-title{font-size:14px;font-weight:800;color:var(--text);}
+.metric-value{font-size:20px;font-weight:900;}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.bar-label{width:36px;font-size:11px;font-weight:600;color:var(--text3);text-align:right;flex-shrink:0;}
+.bar-track{flex:1;height:20px;background:var(--surface2);border-radius:999px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:999px;transition:width 0.4s;min-width:0;}
+.bar-val{width:24px;font-size:11px;font-weight:700;color:var(--text2);flex-shrink:0;}
+.streak-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:999px;font-size:13px;font-weight:700;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;}
+.field input{width:100%;height:48px;padding:0 14px;border:2px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:15px;font-weight:600;font-family:var(--font);-webkit-appearance:none;}
+.field input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 4px var(--blue-bg);}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all 0.15s;-webkit-tap-highlight-color:transparent;}
+.btn-blue{background:var(--blue);color:#fff;}
+.btn-blue:hover{box-shadow:0 4px 16px rgba(59,130,246,0.25);}
+.btn-red{background:var(--red-bg);color:var(--red);border:1px solid rgba(239,68,68,0.2);}
+.btn-sm{padding:6px 12px;font-size:12px;}
+.user-manage{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+.user-manage:last-child{border-bottom:none;}
+.user-manage-name{flex:1;font-size:15px;font-weight:700;}
+.empty-state{text-align:center;padding:32px 16px;color:var(--text3);font-size:14px;}
+.tf-row{display:flex;gap:6px;margin-bottom:14px;}
+.tf-btn{padding:6px 14px;font-size:12px;font-weight:700;font-family:var(--font);border:2px solid var(--border);border-radius:999px;background:transparent;color:var(--text2);cursor:pointer;transition:all 0.15s;}
+.tf-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+@media(max-width:400px){.act-grid{grid-template-columns:repeat(2,1fr);}}
 </style>
 </head>
 <body>
-<div class="app" id="app"></div>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="logo"><span class="logo-icon">📋</span><span class="logo-text">Daily <span>Tracker</span></span></div>
+    <div class="today-date" id="todayDate"></div>
+  </div>
+</div>
+
+<!-- TODAY -->
+<div class="page active" id="page-today">
+<div class="main">
+  <div id="warningArea"></div>
+  <div class="section-head">Select Person</div>
+  <div class="user-row" id="userRow"></div>
+  <div class="section-head">Log Activity</div>
+  <div class="act-grid" id="actGrid"></div>
+  <div class="section-head">Today's Log</div>
+  <div class="card" id="todayLog"></div>
+</div>
+</div>
+
+<!-- METRICS -->
+<div class="page" id="page-metrics">
+<div class="main">
+  <div class="section-head">Select Person</div>
+  <div class="user-row" id="metricUserRow"></div>
+  <div class="section-head">Time Range</div>
+  <div class="tf-row">
+    <button class="tf-btn active" onclick="setRange('7',this)">7 Days</button>
+    <button class="tf-btn" onclick="setRange('14',this)">14 Days</button>
+    <button class="tf-btn" onclick="setRange('30',this)">30 Days</button>
+  </div>
+  <div class="section-head">Activity Breakdown</div>
+  <div class="card" style="display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:20px;padding:20px;">
+    <div id="pieChart" style="width:180px;height:180px;flex-shrink:0;"></div>
+    <div id="pieLegend" style="flex:1;min-width:140px;"></div>
+  </div>
+  <div class="section-head">Activity Details</div>
+  <div id="metricsArea"></div>
+</div>
+</div>
+
+<!-- HISTORY -->
+<div class="page" id="page-history">
+<div class="main">
+  <div class="section-head">Recent Entries (All Users)</div>
+  <div class="card" id="historyList"></div>
+</div>
+</div>
+
+<!-- SETTINGS -->
+<div class="page" id="page-settings">
+<div class="main">
+  <div class="section-head">Add Person</div>
+  <div class="card">
+    <div class="field"><label>Name</label><input type="text" id="newUserName" placeholder="e.g. Sarah"></div>
+    <button class="btn btn-blue" onclick="addUser()" style="width:100%">+ Add Person</button>
+  </div>
+  <div class="section-head">Manage People</div>
+  <div class="card" id="userList"></div>
+  <div class="section-head">Security</div>
+  <div class="card">
+    <div class="field"><label>Change Admin PIN</label><input type="password" id="newPin" placeholder="New 4-digit PIN" maxlength="4" inputmode="numeric"></div>
+    <div class="field"><label>Recovery Code</label><input type="text" id="recoveryCode" placeholder="Secret word or phrase"><div style="font-size:11px;color:var(--text3);margin-top:4px;">You'll need this if you forget your PIN.</div></div>
+    <button class="btn btn-ghost" onclick="saveSettings()" style="width:100%;border:1px solid var(--border);">Save Settings</button>
+  </div>
+  <div class="section-head">Danger Zone</div>
+  <div class="card" style="border-color:rgba(239,68,68,0.2);">
+    <button class="btn btn-red" onclick="clearAll()" style="width:100%">🗑 Clear All Data</button>
+    <div style="font-size:12px;color:var(--text3);margin-top:6px;text-align:center;">Removes all people and logs permanently.</div>
+  </div>
+</div>
+</div>
+
+<!-- BOWEL TYPE SELECTOR -->
+<div id="bowelOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;z-index:90;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;width:280px;text-align:center;">
+    <div style="font-size:32px;margin-bottom:8px;">💩</div>
+    <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:16px;">Bowel Consistency</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button class="btn" onclick="logBowel('Soft')" style="width:100%;background:var(--amber-bg);color:#b45309;border:2px solid rgba(245,158,11,0.3);font-size:15px;">🟡 Soft</button>
+      <button class="btn" onclick="logBowel('Medium')" style="width:100%;background:var(--green-bg);color:#059669;border:2px solid rgba(16,185,129,0.3);font-size:15px;">🟢 Medium</button>
+      <button class="btn" onclick="logBowel('Hard')" style="width:100%;background:var(--red-bg);color:#dc2626;border:2px solid rgba(239,68,68,0.3);font-size:15px;">🔴 Hard</button>
+    </div>
+    <button class="btn btn-ghost" onclick="closeBowel()" style="width:100%;margin-top:10px;border:1px solid var(--border);">Cancel</button>
+  </div>
+</div>
+
+<!-- PIN OVERLAY -->
+<div id="pinOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:100;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px 24px;width:300px;text-align:center;">
+    <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:6px;">🔒 Admin Access</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">Enter your 4-digit PIN</div>
+    <input style="width:100%;height:52px;border:2px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:24px;font-family:var(--font);text-align:center;letter-spacing:0.3em;margin-bottom:10px;-webkit-appearance:none;" type="password" id="pinInput" maxlength="4" inputmode="numeric" placeholder="••••">
+    <div id="pinError" style="color:var(--red);font-size:13px;margin-bottom:10px;min-height:18px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" onclick="closePin()" style="flex:1;border:1px solid var(--border);">Cancel</button>
+      <button class="btn btn-blue" onclick="checkPin()" style="flex:1">Unlock</button>
+    </div>
+    <div style="margin-top:14px;"><a href="#" onclick="resetPin();return false;" style="font-size:12px;color:var(--text3);text-decoration:underline;">Forgot PIN?</a></div>
+  </div>
+</div>
+
+<nav class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('today')"><span class="ti">📋</span><span class="tl">Today</span></button>
+  <button class="tab-btn" onclick="switchTab('metrics')"><span class="ti">📊</span><span class="tl">Metrics</span></button>
+  <button class="tab-btn" onclick="switchTab('history')"><span class="ti">📜</span><span class="tl">History</span></button>
+  <button class="tab-btn" onclick="requirePin('settings')"><span class="ti">⚙️</span><span class="tl">Settings</span></button>
+</nav>
+
 <script>
-/* ---------------- utilities ---------------- */
-const $ = sel => document.querySelector(sel);
-function el(tag, attrs={}, children=[]){
-  const e = document.createElement(tag);
-  for(const k in attrs){
-    if(k==='class') e.className=attrs[k];
-    else if(k==='html') e.innerHTML=attrs[k];
-    else if(k.startsWith('on')) e.addEventListener(k.slice(2), attrs[k]);
-    else e.setAttribute(k, attrs[k]);
-  }
-  (Array.isArray(children)?children:[children]).forEach(c=>{
-    if(c==null) return;
-    e.appendChild(typeof c==='string'? document.createTextNode(c) : c);
-  });
-  return e;
-}
-function randId(n=8){ return Math.random().toString(36).slice(2,2+n); }
-function fmtClock(ms){
-  const s = Math.max(0, Math.ceil(ms/1000));
-  const m = Math.floor(s/60), r = s%60;
-  return m>0 ? `${m}:${String(r).padStart(2,'0')}` : `${r}s`;
-}
-function copyText(text, btn){
-  const done = ()=>{ if(btn){ const old=btn.textContent; btn.textContent='Copied!'; setTimeout(()=>btn.textContent=old, 1400);} };
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text,done));
-  } else fallbackCopy(text,done);
-}
-function fallbackCopy(text, done){
-  const ta = document.createElement('textarea');
-  ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
-  document.body.appendChild(ta); ta.select();
-  try{ document.execCommand('copy'); done(); }catch(e){}
-  document.body.removeChild(ta);
-}
+var firebaseConfig={
+  apiKey:"AIzaSyCXNhQx2yswq1Koro5AKpFIPrBu6wo8o28",
+  authDomain:"wcib-treasury.firebaseapp.com",
+  databaseURL:"https://wcib-treasury-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:"wcib-treasury"
+};
+firebase.initializeApp(firebaseConfig);
+var db=firebase.database();
+var dataRef=db.ref('health_tracker');
 
-/* ---------------- live sync (works on a real host like GitHub Pages — Claude's own
-   artifact sandbox blocks outbound connections, which is why this stayed link+paste there) ---------------- */
-let mqttClient = null;
-let mqttReady = false;
-const topicHandlers = {};
-function mqttConnect(){
-  if(mqttClient || typeof mqtt === 'undefined') return mqttClient;
-  try{
-    mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-      clientId: 'counter_' + randId(10), clean:true, connectTimeout:8000, reconnectPeriod:2500,
-    });
-    mqttClient.on('connect', ()=>{ mqttReady = true; refreshLiveBadge(); });
-    mqttClient.on('reconnect', ()=>{ mqttReady = false; refreshLiveBadge(); });
-    mqttClient.on('close', ()=>{ mqttReady = false; refreshLiveBadge(); });
-    mqttClient.on('message', (topic, msg)=>{
-      const handlers = topicHandlers[topic];
-      if(!handlers) return;
-      let data = null;
-      try{ data = JSON.parse(msg.toString()); }catch(e){ return; }
-      handlers.forEach(fn=>{ try{ fn(data); }catch(e){} });
-    });
-  }catch(e){ mqttClient = null; }
-  return mqttClient;
-}
-function refreshLiveBadge(){
-  const b = document.getElementById('live-badge');
-  if(b){ b.textContent = mqttReady ? '🟢 live' : '🟡 connecting'; b.classList.toggle('olive', mqttReady); }
-}
-function mqttSub(topic, handler){
-  const c = mqttConnect();
-  if(!c) return;
-  (topicHandlers[topic] = topicHandlers[topic] || []).push(handler);
-  c.subscribe(topic);
-}
-function mqttPub(topic, data){
-  const c = mqttConnect();
-  if(!c) return;
-  try{ c.publish(topic, JSON.stringify(data)); }catch(e){}
-}
-function topicGo(salt){ return `sandwich-masters/${salt}/go`; }
-function topicResult(salt, round){ return `sandwich-masters/${salt}/result/${round}`; }
-function topicJoin(salt){ return `sandwich-masters/${salt}/join`; }
+var localState=null,firebaseLoaded=false,activeUser=null,metricUser=null,metricRange=7;
+var DEFAULT_PIN='1234',pinTarget=null,adminUnlocked=false;
 
-/* seeded RNG (deterministic tickets from a shared string, no network needed) */
-function xmur3(str){
-  let h = 1779033703 ^ str.length;
-  for(let i=0;i<str.length;i++){ h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h<<13)|(h>>>19); }
-  return function(){
-    h = Math.imul(h ^ (h>>>16), 2246822519);
-    h = Math.imul(h ^ (h>>>13), 3266489917);
-    return (h ^= h>>>16) >>> 0;
-  };
-}
-function mulberry32(a){
-  return function(){
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a>>>15, 1 | a);
-    t = t + Math.imul(t ^ t>>>7, 61 | t) ^ t;
-    return ((t ^ t>>>14) >>> 0) / 4294967296;
-  };
-}
-function makeRng(seedStr){ return mulberry32(xmur3(seedStr)()); }
-function rngPick(rng, arr){ return arr[Math.floor(rng()*arr.length)]; }
-function rngShuffle(rng, arr){
-  const a = arr.slice();
-  for(let i=a.length-1;i>0;i--){ const j = Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
-  return a;
-}
-
-/* ---------------- game data ---------------- */
-const BREADS = [
-  {id:'panini', name:'Panini roll'}, {id:'sourdough', name:'Sourdough batch'},
-  {id:'ciabatta', name:'Ciabatta'}, {id:'flatbread', name:'Flatbread wrap'},
+var ACTIVITIES=[
+  {key:'bowel',name:'Bowels',icon:'\uD83D\uDCA9',color:'var(--amber)',warn:true,warnDays:2},
+  {key:'brush_am',name:'Brush AM',icon:'\uD83E\uDEB5',color:'var(--blue)'},
+  {key:'brush_pm',name:'Brush PM',icon:'\uD83E\uDEB5',color:'var(--purple)'},
+  {key:'nap',name:'Nap',icon:'\uD83D\uDCA4',color:'var(--teal)'},
+  {key:'water',name:'Water',icon:'\uD83D\uDCA7',color:'var(--blue)'}
 ];
-const INGREDIENTS = [
-  {id:'ham', name:'Smoked ham', cat:'meat', color:'#d98a7a'},
-  {id:'chicken', name:'Roast chicken', cat:'meat', color:'#e0b98a'},
-  {id:'pastrami', name:'Pastrami', cat:'meat', color:'#a84632'},
-  {id:'tuna', name:'Tuna mix', cat:'meat', color:'#c9a97e'},
-  {id:'falafel', name:'Falafel', cat:'meat', color:'#8a7a4a'},
-  {id:'turkey', name:'Turkey breast', cat:'meat', color:'#d9b48f'},
-  {id:'cheddar', name:'Cheddar', cat:'cheese', color:'#f2c34d'},
-  {id:'swiss', name:'Swiss', cat:'cheese', color:'#f5e1a0'},
-  {id:'mozzarella', name:'Mozzarella', cat:'cheese', color:'#f7f0dc'},
-  {id:'blue', name:'Blue cheese', cat:'cheese', color:'#cbb9d8'},
-  {id:'lettuce', name:'Lettuce', cat:'veg', color:'#8fae4a'},
-  {id:'tomato', name:'Tomato', cat:'veg', color:'#d9483a'},
-  {id:'onion', name:'Red onion', cat:'veg', color:'#9a4a7a'},
-  {id:'pickles', name:'Pickles', cat:'veg', color:'#7a9a3a'},
-  {id:'peppers', name:'Roasted peppers', cat:'veg', color:'#d9722e'},
-  {id:'rocket', name:'Rocket', cat:'veg', color:'#5c7a3a'},
-  {id:'mayo', name:'Mayo', cat:'sauce', color:'#f5eddb'},
-  {id:'mustard', name:'Mustard', cat:'sauce', color:'#d9a52c'},
-  {id:'chipotle', name:'Chipotle mayo', cat:'sauce', color:'#c9603a'},
-  {id:'pesto', name:'Pesto', cat:'sauce', color:'#6b7a3a'},
-  {id:'vinaigrette', name:'Vinaigrette', cat:'sauce', color:'#b89a5a'},
-  {id:'bacon', name:'Bacon', cat:'extra', color:'#8a3a2a'},
-  {id:'crispyonions', name:'Crispy onions', cat:'extra', color:'#c98a3a'},
-  {id:'avocado', name:'Avocado', cat:'extra', color:'#6a8a4a'},
-];
-const CAT_ORDER = ['meat','cheese','veg','sauce','extra'];
-const CAT_LABEL = {meat:'Fillings', cheese:'Cheese', veg:'Veg', sauce:'Sauce', extra:'Extras'};
-const CUSTOMER_NAMES = ['Priya','Jamal','Sofia','Ollie','Nadia','Ben','Freya','Kai','Maya','Theo','Ruth','Dexter','Anya','Marcus','Lola','Sanjay','Elle','Rico'];
-const RULES = [
-  {id:'sauce_first', text:'Sauce goes straight onto the bottom bun', check:(layers)=> layers.length>0 && layers[0].cat==='sauce'},
-  {id:'two_cheese', text:'Two different cheeses, no less', check:(layers)=> new Set(layers.filter(l=>l.cat==='cheese').map(l=>l.id)).size>=2},
-  {id:'veg_only', text:'Keep it veg — no meat on this one', check:(layers)=> !layers.some(l=>l.cat==='meat')},
-  {id:'bacon_top', text:'Bacon is the last thing in before the lid', check:(layers)=> layers.length>0 && layers[layers.length-1].id==='bacon'},
-  {id:'double_pickles', text:'Double up on the pickles', check:(layers)=> layers.filter(l=>l.id==='pickles').length>=2},
-];
-function ingr(id){ return INGREDIENTS.find(i=>i.id===id); }
-function breadName(id){ const b=BREADS.find(b=>b.id===id); return b?b.name:id; }
-function ruleById(id){ return RULES.find(r=>r.id===id); }
 
-function genTicket(seedStr){
-  const rng = makeRng(seedStr);
-  const pool = rngShuffle(rng, INGREDIENTS);
-  const want = pool.slice(0,3).map(i=>i.id);
-  const avoid = pool.find(i=>!want.includes(i.id)).id;
-  return {
-    customer: rngPick(rng, CUSTOMER_NAMES),
-    bread: rngPick(rng, BREADS).id,
-    want, avoid,
-    ruleId: rngPick(rng, RULES).id,
-  };
-}
-function ticketForRound(cfg, round){ return genTicket(cfg.salt + ':' + round); }
+function defaultState(){return{users:[],logs:[]};}
+function getS(){if(!localState)localState=defaultState();if(!Array.isArray(localState.users))localState.users=[];if(!Array.isArray(localState.logs))localState.logs=[];return localState;}
+function saveState(s){if(!firebaseLoaded)return;localState=s;dataRef.set(s).catch(function(e){console.error('Firebase error:',e);});}
+function todayStr(){return new Date().toISOString().slice(0,10);}
+function dateStr(d){return d.toISOString().slice(0,10);}
+function fmtDate(d){return new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'});}
+function dayName(d){return new Date(d+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short'});}
+function timeNow(){return new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
+function daysBetween(d1,d2){return Math.floor((new Date(d2+'T00:00:00')-new Date(d1+'T00:00:00'))/86400000);}
 
-function scoreBuild(ticket, breadId, layers, elapsedMs, timeLimitSec){
-  const breadOk = breadId === ticket.bread;
-  const wantHits = ticket.want.filter(w => layers.some(l=>l.id===w));
-  const avoidOk = !layers.some(l=>l.id===ticket.avoid);
-  const rule = ruleById(ticket.ruleId);
-  const ruleOk = !!(rule && rule.check(layers, breadId));
-  const counts = {};
-  layers.forEach(l=> counts[l.id]=(counts[l.id]||0)+1);
-  const overStacked = Object.values(counts).some(c=>c>2) || layers.length>9;
-  const tidy = !overStacked;
-  const completed = breadOk && wantHits.length===3 && avoidOk;
-  const remaining = Math.max(0, timeLimitSec*1000 - elapsedMs);
-  const remFrac = timeLimitSec>0 ? remaining/(timeLimitSec*1000) : 0;
-  const speed = completed ? Math.round(20*remFrac) : 0;
-  const total = (breadOk?25:0) + wantHits.length*15 + (avoidOk?20:0) + (ruleOk?25:0) + (tidy?15:8) + speed;
-  return {breadOk, wantHits:wantHits.length, avoidOk, ruleOk, tidy, completed, speed, total, elapsedMs};
+function getLastLog(user,act){
+  var s=getS(),logs=s.logs.filter(function(l){return l.user===user&&l.activity===act;});
+  if(!logs.length)return null;
+  logs.sort(function(a,b){return a.date<b.date?1:-1;});
+  return logs[0].date;
 }
 
-/* ---------------- URL config encode/decode ---------------- */
-function encodeCfg(cfg){ return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(cfg))))); }
-function decodeCfg(str){
-  try{ return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(str))))); }
-  catch(e){ return null; }
-}
-function playerLink(cfg){
-  const base = location.origin + location.pathname;
-  return base + '?t=' + encodeCfg(cfg);
-}
-function defaultAdvance(n){
-  const table = {1:[1],2:[3,1],3:[5,3,1],4:[8,4,2,1],5:[10,6,3,2,1],6:[12,8,5,3,2,1]};
-  return table[n] || Array.from({length:n},(_,i)=> i===n-1?1: n-i+1);
-}
-function encodeLB(payload){ return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload))))); }
-function decodeLB(str){
-  try{ return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(str))))); }
-  catch(e){ return null; }
-}
-function lbLink(payload){
-  const base = location.origin + location.pathname;
-  return base + '?lb=' + encodeLB(payload);
-}
-function encodeGo(p){ return encodeURIComponent(btoa(JSON.stringify(p))); }
-function decodeGo(s){ try{ return JSON.parse(atob(decodeURIComponent(s))); }catch(e){ return null; } }
-function buildGoLink(cfg, round, goAt){
-  const base = location.origin + location.pathname;
-  return base + '?t=' + encodeCfg(cfg) + '&go=' + encodeGo({r:round, at:goAt});
-}
-function medalFor(i){ return i===0?'🥇':i===1?'🥈':i===2?'🥉':String(i+1); }
-function renderLeaderboardRows(container, entries, cutN, isFinal){
-  container.innerHTML='';
-  if(entries.length===0){ container.appendChild(el('div',{class:'muted'}, 'No results yet.')); return; }
-  entries.forEach(([name,score],i)=>{
-    if(cutN && i===cutN && !isFinal){ container.appendChild(el('div',{class:'cut-divider'}, `top ${cutN} advance`)); }
-    container.appendChild(el('div',{class:'lb-row'},[
-      el('span',{class:'lb-rank'}, medalFor(i)),
-      el('span',{class:'lb-name'}, name),
-      el('span',{class:'lb-score'}, `${score} pts`),
-    ]));
+function getWarnings(){
+  var s=getS(),w=[];
+  s.users.forEach(function(u){
+    ACTIVITIES.forEach(function(a){
+      if(!a.warn)return;
+      var last=getLastLog(u.name,a.key);
+      var days=last?daysBetween(last,todayStr()):999;
+      if(days>=a.warnDays)w.push({user:u.name,activity:a,days:days});
+    });
   });
+  return w;
 }
 
-/* ---------------- app state ---------------- */
-const app = $('#app');
-const S = { cfg:null, isPlayer:false };
+function getTodayCount(user,act){var s=getS(),t=todayStr();return s.logs.filter(function(l){return l.user===user&&l.activity===act&&l.date===t;}).length;}
 
-function topbar(label){
-  return el('div',{class:'topbar'},[
-    el('div',{class:'brand'}, 'The Counter'),
-    el('div',{class:'role-tag'}, label || ''),
-  ]);
+function logActivity(k){
+  if(!activeUser)return;
+  if(k==='bowel'){document.getElementById('bowelOverlay').style.display='flex';return;}
+  var s=getS();s.logs.push({id:Date.now(),user:activeUser,activity:k,date:todayStr(),time:timeNow()});saveState(s);
+}
+function logBowel(type){
+  closeBowel();
+  var s=getS();s.logs.push({id:Date.now(),user:activeUser,activity:'bowel',date:todayStr(),time:timeNow(),detail:type});saveState(s);
+}
+function closeBowel(){document.getElementById('bowelOverlay').style.display='none';}
+function deleteLog(id){var s=getS();s.logs=s.logs.filter(function(l){return l.id!==id;});saveState(s);}
+
+function addUser(){
+  var name=document.getElementById('newUserName').value.trim();
+  if(!name){alert('Please enter a name.');return;}
+  var s=getS();
+  if(s.users.find(function(u){return u.name.toLowerCase()===name.toLowerCase();})){alert('Already exists.');return;}
+  s.users.push({id:Date.now(),name:name});saveState(s);document.getElementById('newUserName').value='';
+}
+function removeUser(id){if(!confirm('Remove this person?'))return;var s=getS();s.users=s.users.filter(function(u){return u.id!==id;});saveState(s);}
+function clearAll(){if(!confirm('Delete ALL data?'))return;localState=defaultState();dataRef.set(localState);}
+function saveSettings(){
+  var s=getS(),pin=document.getElementById('newPin').value.trim(),code=document.getElementById('recoveryCode').value.trim();
+  var changed=[];
+  if(pin.length===4&&/^\d+$/.test(pin)){s.pin=pin;document.getElementById('newPin').value='';changed.push('PIN');}
+  else if(pin.length>0){alert('PIN must be exactly 4 digits.');return;}
+  if(code.length>0){s.recoveryCode=code;document.getElementById('recoveryCode').value='';changed.push('Recovery Code');}
+  if(changed.length){saveState(s);alert(changed.join(' & ')+' updated!');}
 }
 
-/* ================= MODERATOR ================= */
-function renderModSetup(){
-  app.innerHTML=''; app.appendChild(topbar('moderator · setup'));
-  let numRounds = 3;
-  let advance = defaultAdvance(3);
+function selectUser(n){activeUser=n;renderToday();}
+function selectMetricUser(n){metricUser=n;renderMetrics();}
 
-  const card = el('div',{class:'card stack-v'});
-  card.appendChild(el('h2',{}, 'Set up the tournament'));
-  card.appendChild(el('p',{class:'muted'}, "No sign-ins, no app to install — the rules get baked straight into the link you share."));
+function renderWarnings(){
+  var el=document.getElementById('warningArea'),w=getWarnings();
+  if(!w.length){el.innerHTML='';return;}
+  el.innerHTML=w.map(function(x){
+    var dt=x.days>=999?'No record yet':x.days+' day'+(x.days!==1?'s':'')+' ago';
+    return'<div class="warning-banner"><div class="warning-icon">\u26A0\uFE0F</div><div class="warning-body"><div class="warning-title">'+x.user+' \u2014 '+x.activity.name+'</div><div class="warning-text">Last logged: '+dt+'. Please check!</div></div></div>';
+  }).join('');
+}
 
-  const nameField = el('div',{class:'field'},[ el('label',{},'Tournament name'), el('input',{type:'text', id:'f-name', value:'The Counter — Team Shift'}) ]);
-  const timeField = el('div',{class:'field'},[ el('label',{},'Time per round'), el('input',{type:'number', id:'f-time', value:'90', min:'20', max:'300'}), el('div',{class:'hint'},'Seconds each player gets once you say go.') ]);
-  const roundsField = el('div',{class:'field'},[ el('label',{},'Number of rounds'), el('input',{type:'number', id:'f-rounds', value:'3', min:'1', max:'6'}) ]);
-  const advanceWrap = el('div',{class:'field'},[ el('label',{},'Who advances each round'), el('div',{id:'advance-fields', class:'stack-v'}) ]);
+function renderUserRow(){
+  var s=getS(),row=document.getElementById('userRow');
+  var wu=getWarnings().map(function(w){return w.user;});
+  if(!s.users.length){row.innerHTML='<div class="empty-state">Add people in Settings first.</div>';return;}
+  if(!activeUser&&s.users.length)activeUser=s.users[0].name;
+  row.innerHTML=s.users.map(function(u){
+    var hw=wu.indexOf(u.name)>=0;
+    return'<button class="user-pill'+(activeUser===u.name?' active':'')+(hw?' has-warning':'')+'" onclick="selectUser(\''+u.name.replace(/'/g,"\\'")+'\')">'+u.name+'</button>';
+  }).join('');
+}
 
-  function renderAdvanceFields(){
-    const wrap = advanceWrap.querySelector('#advance-fields');
-    wrap.innerHTML='';
-    advance = advance.length===numRounds ? advance : defaultAdvance(numRounds);
-    for(let i=0;i<numRounds;i++){
-      const isLast = i===numRounds-1;
-      const row = el('div',{class:'row'},[
-        el('div',{style:'flex:2;align-self:center;font-size:14px;'}, `Round ${i+1} — advance top`),
-        el('input',{type:'number', min:'1', max:'999', value:String(advance[i]), oninput:(e)=>{ advance[i]=Math.max(1, parseInt(e.target.value||'1',10)); }}),
-      ]);
-      if(isLast) row.appendChild(el('span',{class:'pill olive'}, 'winner'));
-      wrap.appendChild(row);
-    }
+function renderActGrid(){
+  var g=document.getElementById('actGrid');
+  if(!activeUser){g.innerHTML='';return;}
+  g.innerHTML=ACTIVITIES.map(function(a){
+    var c=getTodayCount(activeUser,a.key);
+    var last=getLastLog(activeUser,a.key);
+    var isW=a.warn&&(!last||daysBetween(last,todayStr())>=a.warnDays);
+    return'<div class="act-btn'+(c>0?' logged':'')+(isW?' warning':'')+'" onclick="logActivity(\''+a.key+'\')"><span class="act-icon">'+a.icon+'</span><span class="act-name">'+a.name+'</span><span class="act-count">'+(c>0?c+'x today':'Tap to log')+'</span></div>';
+  }).join('');
+}
+
+function renderTodayLog(){
+  var el=document.getElementById('todayLog');
+  if(!activeUser){el.innerHTML='<div class="empty-state">Select a person above.</div>';return;}
+  var s=getS(),t=todayStr(),logs=s.logs.filter(function(l){return l.user===activeUser&&l.date===t;});
+  logs.sort(function(a,b){return b.id-a.id;});
+  if(!logs.length){el.innerHTML='<div class="empty-state">Nothing logged today for '+activeUser+'.</div>';return;}
+  el.innerHTML=logs.map(function(l){
+    var a=ACTIVITIES.find(function(x){return x.key===l.activity;})||{icon:'\uD83D\uDCCC',name:l.activity};
+    var detail=l.detail?' \u2014 '+l.detail:'';
+    return'<div class="log-item"><div class="log-icon">'+a.icon+'</div><div class="log-body"><div class="log-title">'+a.name+detail+'</div><div class="log-meta">'+l.time+'</div></div><button class="log-del" onclick="adminDeleteLog('+l.id+')">\u2715</button></div>';
+  }).join('');
+}
+
+function renderToday(){renderWarnings();renderUserRow();renderActGrid();renderTodayLog();}
+
+function drawPie(data,colors,labels,icons){
+  var total=data.reduce(function(a,b){return a+b;},0);
+  var pieEl=document.getElementById('pieChart');
+  var legEl=document.getElementById('pieLegend');
+  if(total===0){pieEl.innerHTML='<div style="text-align:center;color:var(--text3);font-size:13px;padding-top:70px;">No data yet</div>';legEl.innerHTML='';return;}
+  var cx=90,cy=90,r=80,ir=45;
+  var svg='<svg viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">';
+  var angle=-90;
+  for(var i=0;i<data.length;i++){
+    if(data[i]===0)continue;
+    var pct=data[i]/total;
+    var a1=angle*Math.PI/180;
+    var sweep=pct*360;
+    var a2=(angle+sweep)*Math.PI/180;
+    var large=sweep>180?1:0;
+    var x1=cx+r*Math.cos(a1),y1=cy+r*Math.sin(a1);
+    var x2=cx+r*Math.cos(a2),y2=cy+r*Math.sin(a2);
+    var ix1=cx+ir*Math.cos(a2),iy1=cy+ir*Math.sin(a2);
+    var ix2=cx+ir*Math.cos(a1),iy2=cy+ir*Math.sin(a1);
+    svg+='<path d="M'+x1+','+y1+' A'+r+','+r+' 0 '+large+',1 '+x2+','+y2+' L'+ix1+','+iy1+' A'+ir+','+ir+' 0 '+large+',0 '+ix2+','+iy2+' Z" fill="'+colors[i]+'" opacity="0.85"/>';
+    angle+=sweep;
   }
-  renderAdvanceFields();
-  roundsField.querySelector('input').addEventListener('input',(e)=>{
-    numRounds = Math.max(1, Math.min(6, parseInt(e.target.value||'1',10)));
-    advance = defaultAdvance(numRounds);
-    renderAdvanceFields();
-  });
-
-  card.appendChild(nameField); card.appendChild(timeField); card.appendChild(roundsField); card.appendChild(advanceWrap);
-
-  card.appendChild(el('button',{class:'primary', style:'width:100%;margin-top:6px;', onclick:()=>{
-    const cfg = {
-      v:1,
-      name: $('#f-name').value.trim() || 'The Counter — Team Shift',
-      timePerRound: Math.max(20, parseInt($('#f-time').value||'90',10)),
-      numRounds, advance: advance.slice(0,numRounds),
-      salt: randId(10),
-    };
-    S.cfg = cfg;
-    S.mod = { round:0, stillIn:null, results:{}, joined:{}, subs:new Set() }; // results[round] = {name: score}
-    renderModDashboard();
-  }}, 'Create tournament'));
-
-  app.appendChild(card);
+  svg+='<text x="'+cx+'" y="'+(cy-4)+'" text-anchor="middle" fill="currentColor" font-size="24" font-weight="900">'+total+'</text>';
+  svg+='<text x="'+cx+'" y="'+(cy+14)+'" text-anchor="middle" fill="var(--text3)" font-size="10" font-weight="600">TOTAL</text>';
+  svg+='</svg>';
+  pieEl.innerHTML=svg;
+  legEl.innerHTML=data.map(function(d,i){
+    if(d===0)return'';
+    var pct=Math.round((d/total)*100);
+    return'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><div style="width:14px;height:14px;border-radius:4px;background:'+colors[i]+';flex-shrink:0;opacity:0.85;"></div><div style="flex:1;"><div style="font-size:13px;font-weight:700;color:var(--text);">'+icons[i]+' '+labels[i]+'</div><div style="font-size:12px;color:var(--text2);">'+d+' entries ('+pct+'%)</div></div></div>';
+  }).join('');
 }
 
-function renderModDashboard(){
-  app.innerHTML=''; app.appendChild(topbar('moderator'));
-  const cfg = S.cfg, m = S.mod;
-  const link = playerLink(cfg);
-  if(!m.subs) m.subs = new Set();
+function renderMetrics(){
+  var s=getS(),mRow=document.getElementById('metricUserRow'),area=document.getElementById('metricsArea');
+  if(!s.users.length){mRow.innerHTML='<div class="empty-state">No people added yet.</div>';area.innerHTML='';return;}
+  if(!metricUser&&s.users.length)metricUser=s.users[0].name;
+  mRow.innerHTML=s.users.map(function(u){
+    return'<button class="user-pill'+(metricUser===u.name?' active':'')+'" onclick="selectMetricUser(\''+u.name.replace(/'/g,"\\'")+'\')">'+u.name+'</button>';
+  }).join('');
 
-  if(!m.subs.has('__join')){
-    m.subs.add('__join');
-    mqttSub(topicJoin(cfg.salt), (data)=>{
-      if(!data || !data.name) return;
-      m.joined[data.name] = data.at || Date.now();
-      renderModDashboard();
-    });
-  }
+  var days=[];
+  for(var i=metricRange-1;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);days.push(dateStr(d));}
 
-  const top = el('div',{class:'card stack-v'});
-  top.appendChild(el('h2',{}, cfg.name));
-  top.appendChild(el('div',{class:'row'},[
-    el('span',{class:'pill'}, `${cfg.timePerRound}s rounds`),
-    el('span',{class:'pill olive'}, `${cfg.numRounds} round${cfg.numRounds>1?'s':''}`),
-    el('span',{class:'pill', id:'live-badge'}, mqttReady ? '🟢 live' : '🟡 connecting'),
-  ]));
-  top.appendChild(el('div',{class:'field'},[
-    el('label',{}, 'Send this link to your team — anyone can open it, no account needed'),
-    el('div',{class:'linkbox'},[
-      el('input',{type:'text', readonly:'true', value:link, onclick:(e)=>e.target.select()}),
-      el('button',{class:'small', onclick:(e)=> copyText(link, e.target)}, 'Copy'),
-    ]),
-  ]));
-  const joinedNames = Object.keys(m.joined);
-  top.appendChild(el('div',{class:'field'},[
-    el('label',{}, `Players in the lineup (${joinedNames.length})`),
-    joinedNames.length===0
-      ? el('div',{class:'empty'}, 'Share the link — names will appear here the moment people join.')
-      : el('div',{}, joinedNames.map(n=> el('span',{class:'pill', style:'margin:2px 4px 2px 0;display:inline-block;'}, n))),
-  ]));
-  app.appendChild(top);
+  var pieData=ACTIVITIES.map(function(act){return s.logs.filter(function(l){return l.user===metricUser&&l.activity===act.key&&days.indexOf(l.date)>=0;}).length;});
+  var pieColors=['#f59e0b','#3b82f6','#8b5cf6','#14b8a6','#3b82f6'];
+  var pieLabels=ACTIVITIES.map(function(a){return a.name;});
+  var pieIcons=ACTIVITIES.map(function(a){return a.icon;});
+  drawPie(pieData,pieColors,pieLabels,pieIcons);
 
-  if(m.round >= cfg.numRounds){
-    renderModComplete(cfg, m);
-    return;
-  }
+  area.innerHTML=ACTIVITIES.map(function(act){
+    var counts=days.map(function(d){return s.logs.filter(function(l){return l.user===metricUser&&l.activity===act.key&&l.date===d;}).length;});
+    var total=counts.reduce(function(a,b){return a+b;},0);
+    var max=Math.max.apply(null,counts)||1;
+    var avg=(total/metricRange).toFixed(1);
+    var streak=0;for(var i=days.length-1;i>=0;i--){if(counts[i]>0)streak++;else break;}
+    var lastLog=getLastLog(metricUser,act.key);
+    var daysSince=lastLog?daysBetween(lastLog,todayStr()):null;
+    var isW=act.warn&&(daysSince===null||daysSince>=act.warnDays);
 
-  const roundNum = m.round + 1;
-  const ticket = ticketForRound(cfg, roundNum);
-  const card = el('div',{class:'card stack-v'});
-  card.appendChild(el('h2',{}, `Round ${roundNum} of ${cfg.numRounds}`));
-  if(m.stillIn) card.appendChild(el('p',{class:'muted'}, `Still in it: ${m.stillIn.join(', ')}`));
-  else card.appendChild(el('p',{class:'muted'}, 'Everyone plays this round.'));
+    var showDays=days.slice(-7);
+    var showCounts=counts.slice(-7);
+    var barHtml=showDays.map(function(d,idx){
+      var c=showCounts[idx]||0;
+      var pct=max>0?Math.round((c/max)*100):0;
+      return'<div class="bar-row"><div class="bar-label">'+dayName(d)+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+act.color+'"></div></div><div class="bar-val">'+c+'</div></div>';
+    }).join('');
 
-  card.appendChild(el('div',{class:'ticket'},[
-    el('div',{class:'t-head'},[el('span',{},'ORDER — for reference'), el('span',{}, breadName(ticket.bread))]),
-    el('div',{class:'t-customer'}, ticket.customer),
-    el('div',{class:'t-line'}, ['Wants: ', el('b',{}, ticket.want.map(w=>ingr(w).name).join(', '))]),
-    el('div',{class:'t-line'}, ['No: ', el('b',{}, ingr(ticket.avoid).name)]),
-    el('div',{class:'t-rule'}, ruleById(ticket.ruleId).text),
-  ]));
-  card.appendChild(el('p',{class:'hint'}, `Everyone in the lineup gets this ticket automatically the second you hit Go.`));
-
-  const goWrap = el('div',{class:'field'});
-  goWrap.appendChild(el('label',{}, 'Go — start it live'));
-  goWrap.appendChild(el('div',{class:'row'},[
-    el('input',{type:'number', id:'lead-sec', value:'5', min:'0', max:'30'}),
-    el('button',{class:'primary', onclick:(e)=>{
-      const lead = Math.max(0, parseInt($('#lead-sec').value||'5',10));
-      const goAt = Date.now() + lead*1000;
-      mqttPub(topicGo(cfg.salt), {r:roundNum, at:goAt});
-      const btnLabel = e.target.textContent; e.target.textContent='Sent!'; setTimeout(()=>e.target.textContent=btnLabel, 1200);
-      if(window.__modCountdownTimer) clearInterval(window.__modCountdownTimer);
-      window.__modCountdownTimer = setInterval(()=>{
-        const c = document.getElementById('mod-countdown');
-        if(!c){ clearInterval(window.__modCountdownTimer); return; }
-        const remaining = goAt - Date.now();
-        if(remaining<=0){ c.textContent='GO!'; c.classList.add('low'); clearInterval(window.__modCountdownTimer); return; }
-        c.textContent = 'Starts in ' + fmtClock(remaining);
-      }, 200);
-    }}, `Go — start Round ${roundNum}`),
-  ]));
-  goWrap.appendChild(el('div',{id:'mod-countdown', class:'timer', style:'margin-top:8px;'}, ''));
-  goWrap.appendChild(el('p',{class:'hint'}, "Everyone already in the lineup gets this instantly — no link to paste. Ingredients unlock the second it hits zero, for everyone at once."));
-  goWrap.appendChild(el('details',{style:'margin-top:8px;'},[
-    el('summary',{style:'font-size:12px;color:var(--ink-light);cursor:pointer;'}, "Backup: get a go-link instead (if live sync isn't working for someone)"),
-    el('button',{class:'small ghost', style:'margin-top:8px;', onclick:(e)=>{
-      const lead = Math.max(3, parseInt(($('#lead-sec')||{value:5}).value||'5',10));
-      const goAt = Date.now() + Math.max(lead,5)*1000;
-      copyText(buildGoLink(cfg, roundNum, goAt), e.target);
-    }}, 'Copy go-link'),
-  ]));
-  card.appendChild(goWrap);
-
-  const defaultN = cfg.advance[m.round];
-  const isFinal = roundNum === cfg.numRounds;
-
-  const resultsWrap = el('div',{class:'field'});
-  resultsWrap.appendChild(el('label',{}, 'Results — arrive automatically as people serve'));
-  const rows = m.results[roundNum] || (m.results[roundNum]={});
-  const rtopic = topicResult(cfg.salt, roundNum);
-  if(!m.subs.has(rtopic)){
-    m.subs.add(rtopic);
-    mqttSub(rtopic, (data)=>{
-      if(!data || !data.name || typeof data.total !== 'number') return;
-      const rmap = m.results[data.round] || (m.results[data.round]={});
-      rmap[data.name] = data.total;
-      if(data.round === roundNum) renderModDashboard();
-    });
-  }
-  const tableBox = el('div',{id:'results-table'});
-  function currentCutN(){ const i = document.getElementById('adv-n'); return i ? (parseInt(i.value,10)||defaultN) : defaultN; }
-  function renderTable(){
-    const entries = Object.entries(rows).sort((a,b)=>b[1]-a[1]);
-    renderLeaderboardRows(tableBox, entries, currentCutN(), isFinal);
-    if(entries.length>0){
-      // add remove buttons onto the just-rendered rows, aligned by name
-      Array.from(tableBox.querySelectorAll('.lb-row')).forEach(row=>{
-        const nameEl = row.querySelector('.lb-name');
-        if(!nameEl) return;
-        row.appendChild(el('button',{class:'small ghost', onclick:()=>{ delete rows[nameEl.textContent]; renderTable(); }}, '✕'));
-      });
-    }
-  }
-  renderTable();
-  resultsWrap.appendChild(tableBox);
-  resultsWrap.appendChild(el('div',{class:'row', style:'margin-top:6px;'},[
-    el('button',{class:'small ghost', onclick:()=>{
-      const entries = Object.entries(rows).sort((a,b)=>b[1]-a[1]);
-      renderModBigScreen(cfg, m, roundNum, entries, currentCutN(), isFinal);
-    }}, 'Show big-screen view'),
-    el('button',{class:'small', onclick:(e)=>{
-      const entries = Object.entries(rows).sort((a,b)=>b[1]-a[1]);
-      const payload = {v:1, name:cfg.name, round:roundNum, total:cfg.numRounds, entries, cut: isFinal?null:currentCutN(), final:isFinal, winner: isFinal && entries[0] ? entries[0][0] : null};
-      copyText(lbLink(payload), e.target);
-    }}, 'Copy leaderboard link'),
-  ]));
-
-  resultsWrap.appendChild(el('div',{class:'field'},[
-    el('label',{}, 'Backup: add or fix a score by hand'),
-    el('div',{class:'row'},[
-      el('input',{type:'text', id:'add-name', placeholder:'Name'}),
-      el('input',{type:'number', id:'add-score', placeholder:'Score'}),
-      el('button',{class:'small', onclick:()=>{
-        const n = $('#add-name').value.trim(); const s = parseInt($('#add-score').value||'0',10);
-        if(!n) return;
-        rows[n]=s; $('#add-name').value=''; $('#add-score').value='';
-        renderTable();
-      }}, 'Add'),
-    ]),
-  ]));
-
-  resultsWrap.appendChild(el('div',{class:'field'},[
-    el('label',{}, 'Or paste several lines at once (Name — 120 pts)'),
-    el('textarea',{id:'paste-box', placeholder:'Tayo — R1 — 118pts\nSam — 96 pts'}),
-    el('button',{class:'small', style:'margin-top:6px;', onclick:()=>{
-      const text = $('#paste-box').value;
-      text.split('\n').forEach(line=>{
-        const m2 = line.match(/(\d+)\s*pts?/i);
-        if(!m2) return;
-        const score = parseInt(m2[1],10);
-        let name = line.slice(0, m2.index).replace(/[—–\-:]+$/,'').trim();
-        name = name.replace(/\bR\d+\b/i,'').trim();
-        if(name) rows[name]=score;
-      });
-      $('#paste-box').value='';
-      renderTable();
-    }}, 'Parse & add'),
-  ]));
-
-  card.appendChild(resultsWrap);
-
-  card.appendChild(el('div',{class:'row', style:'margin-top:10px;'},[
-    el('div',{style:'flex:2;align-self:center;'}, isFinal ? 'Crown the winner (top)' : 'Advance top'),
-    el('input',{type:'number', id:'adv-n', min:'1', value:String(defaultN), oninput:renderTable}),
-  ]));
-  card.appendChild(el('button',{class:'primary', style:'width:100%;margin-top:10px;', onclick:()=>{
-    const entries = Object.entries(rows).sort((a,b)=>b[1]-a[1]);
-    if(entries.length===0){ return; }
-    const n = Math.max(1, Math.min(entries.length, parseInt($('#adv-n').value||String(defaultN),10)));
-    const advancing = entries.slice(0,n).map(e=>e[0]);
-    m.stillIn = advancing;
-    if(isFinal){ m.winner = advancing[0]; m.finalOrder = entries.map(e=>e[0]); }
-    m.round += 1;
-    renderModDashboard();
-  }}, isFinal ? 'Crown the winner' : 'Advance & continue'));
-
-  app.appendChild(card);
+    return'<div class="metric-card"'+(isW?' style="border-color:var(--red);"':'')+'><div class="metric-header"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:22px;">'+act.icon+'</span><span class="metric-title">'+act.name+'</span></div><div style="text-align:right;"><div class="metric-value" style="color:'+act.color+'">'+total+'</div><div style="font-size:11px;color:var(--text3);">total ('+metricRange+'d)</div></div></div>'+barHtml+'<div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;"><span class="streak-badge" style="background:var(--green-bg);color:var(--green);">\uD83D\uDD25 '+streak+' day streak</span><span class="streak-badge" style="background:var(--blue-bg);color:var(--blue);">Avg: '+avg+'/day</span>'+(isW?'<span class="streak-badge" style="background:var(--red-bg);color:var(--red);">\u26A0\uFE0F '+(daysSince===null?'No record':'Last: '+daysSince+'d ago')+'</span>':'')+'</div></div>';
+  }).join('');
 }
 
-function renderModBigScreen(cfg, m, roundNum, entries, cutN, isFinal){
-  app.innerHTML=''; app.appendChild(topbar('moderator · big screen'));
-  const card = el('div',{class:'card lb-screen stack-v'});
-  card.appendChild(el('h2',{}, isFinal ? 'Final standings' : `Round ${roundNum} — leaderboard`));
-  const listWrap = el('div',{class:'lb-big'});
-  renderLeaderboardRows(listWrap, entries, cutN, isFinal);
-  card.appendChild(listWrap);
-  card.appendChild(el('button',{class:'ghost', style:'width:100%;margin-top:16px;', onclick:renderModDashboard}, 'Back to results entry'));
-  app.appendChild(card);
+function renderHistory(){
+  var s=getS(),el=document.getElementById('historyList');
+  var logs=s.logs.slice().sort(function(a,b){return b.id-a.id;}).slice(0,50);
+  if(!logs.length){el.innerHTML='<div class="empty-state">No entries yet.</div>';return;}
+  el.innerHTML=logs.map(function(l){
+    var a=ACTIVITIES.find(function(x){return x.key===l.activity;})||{icon:'\uD83D\uDCCC',name:l.activity};
+    var detail=l.detail?' ('+l.detail+')':'';
+    return'<div class="log-item"><div class="log-icon">'+a.icon+'</div><div class="log-body"><div class="log-title">'+l.user+' \u2014 '+a.name+detail+'</div><div class="log-meta">'+fmtDate(l.date)+' at '+l.time+'</div></div><button class="log-del" onclick="adminDeleteLog('+l.id+')">\u2715</button></div>';
+  }).join('');
 }
 
-function renderModComplete(cfg, m){
-  const card = el('div',{class:'card trophy-wrap'});
-  card.appendChild(el('span',{class:'trophy-emoji'}, '🏆'));
-  card.appendChild(el('h2',{}, m.winner || 'Winner'));
-  card.appendChild(el('p',{class:'muted'}, `Top of the board after ${cfg.numRounds} round${cfg.numRounds>1?'s':''}.`));
-  const rest = (m.finalOrder||[]).slice(1);
-  card.appendChild(el('div',{}, rest.map((name,i)=> el('div',{class:'lb-row'},[ el('span',{class:'lb-rank'}, String(i+2)), el('span',{class:'lb-name'}, name) ]))));
-  card.appendChild(el('button',{style:'width:100%;margin-top:16px;', onclick:(e)=>{
-    let text = `${cfg.name} — final standings\n1. ${m.winner} 🏆\n`;
-    rest.forEach((n,i)=> text += `${i+2}. ${n}\n`);
-    copyText(text, e.target);
-  }}, 'Copy standings for team chat'));
-  card.appendChild(el('button',{class:'small', style:'width:100%;margin-top:8px;', onclick:(e)=>{
-    const entries = (m.finalOrder||[]).map(n=> [n, (m.results[cfg.numRounds]||{})[n] ?? 0]);
-    const payload = {v:1, name:cfg.name, round:cfg.numRounds, total:cfg.numRounds, entries, cut:null, final:true, winner:m.winner};
-    copyText(lbLink(payload), e.target);
-  }}, 'Copy leaderboard link (for players)'));
-  card.appendChild(el('button',{class:'ghost', style:'width:100%;margin-top:8px;', onclick:renderModSetup}, 'Start a new tournament'));
-  app.appendChild(card);
+function renderSettings(){
+  var s=getS(),el=document.getElementById('userList');
+  if(!s.users.length){el.innerHTML='<div class="empty-state">No people added yet.</div>';return;}
+  el.innerHTML=s.users.map(function(u){
+    return'<div class="user-manage"><div class="user-manage-name">'+u.name+'</div><button class="btn btn-red btn-sm" onclick="removeUser('+u.id+')">Remove</button></div>';
+  }).join('');
 }
 
-/* ================= PLAYER ================= */
-function renderPlayerJoin(cfg){
-  app.innerHTML=''; app.appendChild(topbar(cfg.name));
-  const card = el('div',{class:'card stack-v'});
-  card.appendChild(el('h2',{}, "What's your name?"));
-  card.appendChild(el('div',{class:'field'},[ el('label',{},'Your name'), el('input',{type:'text', id:'p-name', maxlength:'24'}) ]));
-  card.appendChild(el('p',{class:'hint'}, `Each round runs for ${cfg.timePerRound}s. The moderator starts it for everyone at once — you'll see it happen live, nothing to click to get ready.`));
-  const err = el('div',{style:'color:var(--red);font-weight:700;display:none;'});
-  card.appendChild(err);
-  card.appendChild(el('button',{class:'primary', style:'width:100%;', onclick:()=>{
-    const name = $('#p-name').value.trim();
-    if(!name){ err.style.display='block'; err.textContent='Type your name first.'; return; }
-    S.player = { name };
-    mqttPub(topicJoin(cfg.salt), {name, at:Date.now()});
-    if(!S.goSubscribed){
-      S.goSubscribed = true;
-      mqttSub(topicGo(cfg.salt), (data)=>{
-        if(!data || typeof data.r !== 'number') return;
-        if(S.lastGoRound === data.r) return;
-        S.lastGoRound = data.r;
-        renderPlayerSyncedBuild(cfg, data.r, data.at);
-      });
-    }
-    renderPlayerWaiting(cfg);
-  }}, "Join the lineup"));
-  app.appendChild(card);
+function setRange(r,el){metricRange=parseInt(r);document.querySelectorAll('.tf-btn').forEach(function(b){b.classList.remove('active');});el.classList.add('active');renderMetrics();}
+function renderAll(){renderToday();renderMetrics();renderHistory();renderSettings();}
+
+function requirePin(tab){
+  pinTarget=tab;
+  document.getElementById('pinInput').value='';
+  document.getElementById('pinError').textContent='';
+  document.getElementById('pinOverlay').style.display='flex';
+  setTimeout(function(){document.getElementById('pinInput').focus();},100);
 }
-
-function renderPlayerWaiting(cfg){
-  app.innerHTML=''; app.appendChild(topbar(S.player.name));
-  const card = el('div',{class:'card stack-v center'});
-  card.appendChild(el('h2',{}, "You're in"));
-  card.appendChild(el('p',{class:'muted'}, "Waiting for the moderator to hit Go — this switches automatically the second they do, nothing to click."));
-  card.appendChild(el('span',{class:'pill', id:'live-badge'}, mqttReady ? '🟢 live' : '🟡 connecting'));
-  app.appendChild(card);
+function closePin(){document.getElementById('pinOverlay').style.display='none';pinTarget=null;}
+function checkPin(){
+  var s=getS(),entered=document.getElementById('pinInput').value;
+  if(entered===(s.pin||DEFAULT_PIN)){var t=pinTarget;closePin();adminUnlocked=true;switchTab(t);}
+  else{document.getElementById('pinError').textContent='Incorrect PIN. Try again.';document.getElementById('pinInput').value='';}
 }
-
-function renderPlayerBuild(cfg){
-  app.innerHTML=''; app.appendChild(topbar(S.player.name));
-  const round = S.player.round;
-  const ticket = ticketForRound(cfg, round);
-  const bs = { breadId:null, layers:[] };
-  let startedAt = null, submitted=false, timerHandle=null;
-
-  const card = el('div',{class:'card stack-v'});
-
-  const timerRow = el('div',{class:'timer-wrap'});
-  const timerText = el('div',{class:'timer'}, `${cfg.timePerRound}s`);
-  const startBtn = el('button',{class:'primary', onclick:()=>{
-    if(startedAt) return;
-    startedAt = Date.now();
-    startBtn.textContent = 'Cooking…';
-    startBtn.disabled = true;
-    timerHandle = setInterval(()=>{
-      const remaining = cfg.timePerRound*1000 - (Date.now()-startedAt);
-      timerText.textContent = fmtClock(remaining);
-      timerText.classList.toggle('low', remaining<10000);
-      if(remaining<=0 && !submitted){ doSubmit(); }
-    }, 200);
-  }}, 'Start my clock — go!');
-  timerRow.appendChild(timerText); timerRow.appendChild(startBtn);
-  card.appendChild(timerRow);
-  card.appendChild(el('p',{class:'hint'}, `Round ${round} · ${S.player.name} · click Start together on "go"`));
-
-  card.appendChild(el('div',{class:'ticket'},[
-    el('div',{class:'t-head'},[el('span',{},'ORDER'), el('span',{}, breadName(ticket.bread))]),
-    el('div',{class:'t-customer'}, ticket.customer),
-    el('div',{class:'t-line'}, ['Wants: ', el('b',{}, ticket.want.map(w=>ingr(w).name).join(', '))]),
-    el('div',{class:'t-line'}, ['No: ', el('b',{}, ingr(ticket.avoid).name)]),
-    el('div',{class:'t-rule'}, ruleById(ticket.ruleId).text),
-  ]));
-
-  card.appendChild(el('div',{class:'field'},[
-    el('label',{},'Bread'),
-    el('div',{class:'bread-row', id:'bread-row'}, BREADS.map(b=> el('button',{class:'bread-btn', onclick:(e)=>{
-      bs.breadId=b.id;
-      document.querySelectorAll('#bread-row .bread-btn').forEach(x=>x.classList.remove('chosen'));
-      e.target.classList.add('chosen');
-    }}, b.name))),
-  ]));
-
-  const shell = el('div',{class:'build-shell'});
-  shell.appendChild(el('div',{class:'bun-top'}));
-  const stackZone = el('div',{class:'stack-zone'});
-  shell.appendChild(stackZone);
-  shell.appendChild(el('div',{class:'bun-bottom'}));
-  card.appendChild(el('div',{class:'field'},[ el('label',{},'Your stack — click a layer to pull it off'), shell ]));
-
-  function renderStack(){
-    stackZone.innerHTML='';
-    if(bs.layers.length===0){ stackZone.appendChild(el('div',{class:'muted', style:'text-align:center;padding:10px;font-size:13px;'}, 'Nothing on it yet')); return; }
-    bs.layers.forEach((l,idx)=>{
-      const ig = ingr(l.id);
-      stackZone.appendChild(el('div',{class:'layer '+ig.cat, style:`background:${ig.color};`, onclick:()=>{ bs.layers.splice(idx,1); renderStack(); }}, ig.cat==='sauce'?'':ig.name));
-    });
-  }
-  renderStack();
-
-  const menu = el('div',{});
-  CAT_ORDER.forEach(cat=>{
-    menu.appendChild(el('div',{class:'cat-heading'}, CAT_LABEL[cat]));
-    const grid = el('div',{class:'ingr-menu'});
-    INGREDIENTS.filter(i=>i.cat===cat).forEach(i=>{
-      grid.appendChild(el('button',{class:'ingr-btn', style:`background:${i.color};`, onclick:()=>{ bs.layers.push({id:i.id, cat:i.cat}); renderStack(); }}, [i.name]));
-    });
-    menu.appendChild(grid);
-  });
-  card.appendChild(el('div',{class:'field'},[el('label',{},'Ingredients'), menu]));
-
-  const serveBtn = el('button',{class:'primary', style:'width:100%;margin-top:14px;', onclick:()=>doSubmit()}, 'Serve (Enter)');
-  card.appendChild(serveBtn);
-
-  app.appendChild(card);
-
-  document.onkeydown = (e)=>{
-    if(!startedAt || submitted) return;
-    if(e.key==='Enter'){ e.preventDefault(); doSubmit(); }
-    if(e.key==='Backspace'){ e.preventDefault(); if(bs.layers.length){ bs.layers.pop(); renderStack(); } }
-  };
-
-  function doSubmit(){
-    if(submitted) return;
-    submitted = true;
-    if(timerHandle) clearInterval(timerHandle);
-    document.onkeydown = null;
-    const elapsed = startedAt ? Math.min(cfg.timePerRound*1000, Math.max(0, Date.now()-startedAt)) : cfg.timePerRound*1000;
-    const result = scoreBuild(ticket, bs.breadId, bs.layers, elapsed, cfg.timePerRound);
-    renderPlayerResult(cfg, round, result);
+function resetPin(){
+  var s=getS();
+  if(s.recoveryCode){
+    var answer=prompt('Enter your recovery code:');
+    if(!answer)return;
+    if(answer.trim()===s.recoveryCode){s.pin=DEFAULT_PIN;saveState(s);document.getElementById('pinInput').value='';alert('PIN reset to 1234.');}
+    else{alert('Incorrect recovery code.');}
+  }else{
+    var answer=prompt('No recovery code set.\nType: TRACKER RESET');
+    if(answer&&answer.trim().toUpperCase()==='TRACKER RESET'){s.pin=DEFAULT_PIN;saveState(s);document.getElementById('pinInput').value='';alert('PIN reset to 1234. Set a recovery code in Settings!');}
   }
 }
+document.getElementById('pinInput').addEventListener('keydown',function(e){if(e.key==='Enter')checkPin();});
 
-function renderPlayerResult(cfg, round, result){
-  mqttPub(topicResult(cfg.salt, round), {round, name:S.player.name, total:result.total, at:Date.now()});
-  app.innerHTML=''; app.appendChild(topbar(S.player.name));
-  const card = el('div',{class:'card stack-v center'});
-  card.appendChild(el('h2',{}, 'Order served'));
-  card.appendChild(el('div',{class:'score-breakdown'},[
-    el('div',{class:'k'},'Bread'), el('div',{class:'v'}, result.breadOk?'✓':'✗'),
-    el('div',{class:'k'},'Items wanted'), el('div',{class:'v'}, `${result.wantHits}/3`),
-    el('div',{class:'k'},'Left off what they hated'), el('div',{class:'v'}, result.avoidOk?'✓':'✗'),
-    el('div',{class:'k'},'House rule'), el('div',{class:'v'}, result.ruleOk?'✓':'✗'),
-    el('div',{class:'k'},'Tidy build'), el('div',{class:'v'}, result.tidy?'✓':'✗'),
-    el('div',{class:'k'},'Speed bonus'), el('div',{class:'v'}, `+${result.speed}`),
-  ]));
-  card.appendChild(el('div',{style:'margin-top:10px;font-family:DM Mono,monospace;font-size:28px;'}, `${result.total} pts`));
-  const line = `${S.player.name} — R${round} — ${result.total}pts`;
-  card.appendChild(el('p',{class:'hint'}, "Sent straight to the moderator's board. If it doesn't show up there, copy this as a backup:"));
-  card.appendChild(el('div',{class:'resultline'}, line));
-  card.appendChild(el('button',{class:'small', onclick:(e)=> copyText(line, e.target)}, 'Copy my result'));
-  card.appendChild(el('button',{class:'primary', style:'width:100%;margin-top:14px;', onclick:()=>renderPlayerWaiting(cfg)}, 'Waiting for next round'));
-  app.appendChild(card);
+function adminDeleteLog(id){
+  if(!adminUnlocked){requirePin('_del_'+id);return;}
+  if(!confirm('Delete this entry?'))return;
+  deleteLog(id);
 }
 
-function renderLeaderboardView(payload){
-  app.innerHTML=''; app.appendChild(topbar(payload.final ? 'final standings' : `round ${payload.round} of ${payload.total}`));
-  const card = el('div',{class:'card lb-screen stack-v'});
-  if(payload.final){
-    card.appendChild(el('div',{class:'trophy-wrap', style:'padding:6px 0 0;'},[
-      el('span',{class:'trophy-emoji'}, '🏆'),
-      el('h2',{}, payload.winner || payload.name),
-    ]));
-  } else {
-    card.appendChild(el('h2',{}, payload.name));
-  }
-  const listWrap = el('div',{class:'lb-big'});
-  renderLeaderboardRows(listWrap, payload.entries, payload.cut, payload.final);
-  card.appendChild(listWrap);
-  app.appendChild(card);
+function switchTab(tab){
+  if(tab.startsWith('_del_')){var id=parseInt(tab.slice(5));adminUnlocked=true;if(confirm('Delete this entry?'))deleteLog(id);return;}
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+  document.getElementById('page-'+tab).classList.add('active');
+  var tabs={today:0,metrics:1,history:2,settings:3};
+  document.querySelectorAll('.tab-btn')[tabs[tab]].classList.add('active');
 }
 
-function renderPlayerSyncedJoin(cfg, goPayload){
-  app.innerHTML=''; app.appendChild(topbar(cfg.name));
-  const card = el('div',{class:'card stack-v'});
-  card.appendChild(el('h2',{}, `Round ${goPayload.r} — locked and loaded`));
-  card.appendChild(el('p',{class:'muted'}, "The moderator controls when this round starts. Enter your name — your ingredients unlock automatically the moment it's go time."));
-  card.appendChild(el('div',{class:'field'},[ el('label',{},'Your name'), el('input',{type:'text', id:'p-name', maxlength:'24'}) ]));
-  const err = el('div',{style:'color:var(--red);font-weight:700;display:none;'});
-  card.appendChild(err);
-  card.appendChild(el('button',{class:'primary', style:'width:100%;', onclick:()=>{
-    const name = $('#p-name').value.trim();
-    if(!name){ err.style.display='block'; err.textContent='Type your name first.'; return; }
-    S.player = {name, round: goPayload.r};
-    renderPlayerSyncedBuild(cfg, goPayload.r, goPayload.at);
-  }}, 'Ready'));
-  app.appendChild(card);
-}
+document.getElementById('todayDate').textContent=new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
 
-function renderPlayerSyncedBuild(cfg, round, goAt){
-  app.innerHTML=''; app.appendChild(topbar(S.player.name));
-  const ticket = ticketForRound(cfg, round);
-  const bs = {breadId:null, layers:[]};
-  let submitted=false, unlocked=false, timerHandle=null;
-
-  const card = el('div',{class:'card stack-v'});
-  const timerRow = el('div',{class:'timer-wrap'});
-  const timerText = el('div',{class:'timer'}, '');
-  timerRow.appendChild(timerText);
-  card.appendChild(timerRow);
-  card.appendChild(el('p',{class:'hint'}, `Round ${round} · ${S.player.name} · starts automatically — nothing to click`));
-
-  card.appendChild(el('div',{class:'ticket'},[
-    el('div',{class:'t-head'},[el('span',{},'ORDER'), el('span',{}, breadName(ticket.bread))]),
-    el('div',{class:'t-customer'}, ticket.customer),
-    el('div',{class:'t-line'}, ['Wants: ', el('b',{}, ticket.want.map(w=>ingr(w).name).join(', '))]),
-    el('div',{class:'t-line'}, ['No: ', el('b',{}, ingr(ticket.avoid).name)]),
-    el('div',{class:'t-rule'}, ruleById(ticket.ruleId).text),
-  ]));
-
-  const lockNote = el('div',{class:'empty'}, 'Ingredients unlock the second the clock starts.');
-  const buildArea = el('div',{});
-  card.appendChild(lockNote);
-  card.appendChild(buildArea);
-  app.appendChild(card);
-
-  function buildInterface(){
-    buildArea.innerHTML='';
-    buildArea.appendChild(el('div',{class:'field'},[
-      el('label',{},'Bread'),
-      el('div',{class:'bread-row', id:'bread-row'}, BREADS.map(b=> el('button',{class:'bread-btn', onclick:(e)=>{
-        bs.breadId=b.id;
-        document.querySelectorAll('#bread-row .bread-btn').forEach(x=>x.classList.remove('chosen'));
-        e.target.classList.add('chosen');
-      }}, b.name))),
-    ]));
-    const shell = el('div',{class:'build-shell'});
-    shell.appendChild(el('div',{class:'bun-top'}));
-    const stackZone = el('div',{class:'stack-zone'});
-    shell.appendChild(stackZone);
-    shell.appendChild(el('div',{class:'bun-bottom'}));
-    buildArea.appendChild(el('div',{class:'field'},[ el('label',{},'Your stack — click a layer to pull it off'), shell ]));
-
-    function renderStack(){
-      stackZone.innerHTML='';
-      if(bs.layers.length===0){ stackZone.appendChild(el('div',{class:'muted', style:'text-align:center;padding:10px;font-size:13px;'}, 'Nothing on it yet')); return; }
-      bs.layers.forEach((l,idx)=>{
-        const ig = ingr(l.id);
-        stackZone.appendChild(el('div',{class:'layer '+ig.cat, style:`background:${ig.color};`, onclick:()=>{ bs.layers.splice(idx,1); renderStack(); }}, ig.cat==='sauce'?'':ig.name));
-      });
-    }
-    renderStack();
-
-    const menu = el('div',{});
-    CAT_ORDER.forEach(cat=>{
-      menu.appendChild(el('div',{class:'cat-heading'}, CAT_LABEL[cat]));
-      const grid = el('div',{class:'ingr-menu'});
-      INGREDIENTS.filter(i=>i.cat===cat).forEach(i=>{
-        grid.appendChild(el('button',{class:'ingr-btn', style:`background:${i.color};`, onclick:()=>{ bs.layers.push({id:i.id, cat:i.cat}); renderStack(); }}, [i.name]));
-      });
-      menu.appendChild(grid);
-    });
-    buildArea.appendChild(el('div',{class:'field'},[el('label',{},'Ingredients'), menu]));
-    buildArea.appendChild(el('button',{class:'primary', style:'width:100%;margin-top:14px;', onclick:()=>doSubmit()}, 'Serve (Enter)'));
-
-    document.onkeydown = (e)=>{
-      if(submitted) return;
-      if(e.key==='Enter'){ e.preventDefault(); doSubmit(); }
-      if(e.key==='Backspace'){ e.preventDefault(); if(bs.layers.length){ bs.layers.pop(); renderStack(); } }
-    };
-  }
-
-  function doSubmit(){
-    if(submitted) return;
-    submitted = true;
-    if(timerHandle) clearInterval(timerHandle);
-    document.onkeydown = null;
-    const elapsed = Math.min(cfg.timePerRound*1000, Math.max(0, Date.now()-goAt));
-    const result = scoreBuild(ticket, bs.breadId, bs.layers, elapsed, cfg.timePerRound);
-    renderPlayerResult(cfg, round, result);
-  }
-
-  timerHandle = setInterval(()=>{
-    const now = Date.now();
-    if(now < goAt){
-      timerText.textContent = 'Starts in ' + fmtClock(goAt-now);
-      return;
-    }
-    if(!unlocked){ unlocked=true; lockNote.remove(); buildInterface(); }
-    const remaining = cfg.timePerRound*1000 - (now-goAt);
-    timerText.textContent = fmtClock(remaining);
-    timerText.classList.toggle('low', remaining<10000);
-    if(remaining<=0 && !submitted){ doSubmit(); }
-  }, 200);
-}
-
-/* ---------------- entry point ---------------- */
-function boot(){
-  const params = new URLSearchParams(location.search);
-  const lb = params.get('lb');
-  if(lb){
-    const payload = decodeLB(lb);
-    if(payload && payload.v===1){ renderLeaderboardView(payload); return; }
-  }
-  const t = params.get('t');
-  if(t){
-    const cfg = decodeCfg(t);
-    if(cfg && cfg.v===1){
-      const go = params.get('go');
-      if(go){
-        const goPayload = decodeGo(go);
-        if(goPayload){ renderPlayerSyncedJoin(cfg, goPayload); return; }
-      }
-      renderPlayerJoin(cfg); return;
-    }
-  }
-  renderModSetup();
-}
-boot();
+dataRef.on('value',function(snapshot){
+  var data=snapshot.val();
+  if(data){localState=data;if(!Array.isArray(localState.users))localState.users=[];if(!Array.isArray(localState.logs))localState.logs=[];}
+  else{localState=defaultState();}
+  firebaseLoaded=true;
+  renderAll();
+});
 </script>
 </body>
 </html>
