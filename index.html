@@ -189,6 +189,20 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-hei
   </div>
 </div>
 
+<!-- WATER SELECTOR -->
+<div id="waterOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;z-index:90;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;width:280px;text-align:center;">
+    <div style="font-size:32px;margin-bottom:8px;">💧</div>
+    <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:16px;">How much water?</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button class="btn" onclick="logWater('Half glass')" style="width:100%;background:var(--blue-bg);color:#1d4ed8;border:2px solid rgba(59,130,246,0.3);font-size:15px;">🥛 Half Glass</button>
+      <button class="btn" onclick="logWater('Full glass')" style="width:100%;background:var(--blue-bg);color:#1d4ed8;border:2px solid rgba(59,130,246,0.3);font-size:15px;">🥛 Full Glass</button>
+      <button class="btn" onclick="logWater('1.5 glasses')" style="width:100%;background:var(--blue-bg);color:#1d4ed8;border:2px solid rgba(59,130,246,0.3);font-size:15px;">🥛 1.5 Glasses</button>
+    </div>
+    <button class="btn btn-ghost" onclick="closeWater()" style="width:100%;margin-top:10px;border:1px solid var(--border);">Cancel</button>
+  </div>
+</div>
+
 <!-- PIN OVERLAY -->
 <div id="pinOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:100;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px 24px;width:300px;text-align:center;">
@@ -268,6 +282,7 @@ function getTodayCount(user,act){var s=getS(),t=todayStr();return s.logs.filter(
 function logActivity(k){
   if(!activeUser)return;
   if(k==='bowel'){document.getElementById('bowelOverlay').style.display='flex';return;}
+  if(k==='water'){document.getElementById('waterOverlay').style.display='flex';return;}
   var s=getS();s.logs.push({id:Date.now(),user:activeUser,activity:k,date:todayStr(),time:timeNow()});saveState(s);
 }
 function logBowel(type){
@@ -275,6 +290,11 @@ function logBowel(type){
   var s=getS();s.logs.push({id:Date.now(),user:activeUser,activity:'bowel',date:todayStr(),time:timeNow(),detail:type});saveState(s);
 }
 function closeBowel(){document.getElementById('bowelOverlay').style.display='none';}
+function logWater(type){
+  closeWater();
+  var s=getS();s.logs.push({id:Date.now(),user:activeUser,activity:'water',date:todayStr(),time:timeNow(),detail:type});saveState(s);
+}
+function closeWater(){document.getElementById('waterOverlay').style.display='none';}
 function deleteLog(id){var s=getS();s.logs=s.logs.filter(function(l){return l.id!==id;});saveState(s);}
 
 function addUser(){
@@ -418,12 +438,34 @@ function renderMetrics(){
 
 function renderHistory(){
   var s=getS(),el=document.getElementById('historyList');
-  var logs=s.logs.slice().sort(function(a,b){return b.id-a.id;}).slice(0,50);
+  var logs=s.logs.slice().sort(function(a,b){return a.date===b.date?b.id-a.id:(a.date<b.date?1:-1);});
   if(!logs.length){el.innerHTML='<div class="empty-state">No entries yet.</div>';return;}
-  el.innerHTML=logs.map(function(l){
-    var a=ACTIVITIES.find(function(x){return x.key===l.activity;})||{icon:'\uD83D\uDCCC',name:l.activity};
-    var detail=l.detail?' ('+l.detail+')':'';
-    return'<div class="log-item"><div class="log-icon">'+a.icon+'</div><div class="log-body"><div class="log-title">'+l.user+' \u2014 '+a.name+detail+'</div><div class="log-meta">'+fmtDate(l.date)+' at '+l.time+'</div></div><button class="log-del" onclick="adminDeleteLog('+l.id+')">\u2715</button></div>';
+
+  // Group by date
+  var dates={},dateOrder=[];
+  logs.forEach(function(l){
+    if(!dates[l.date]){dates[l.date]={};dateOrder.push(l.date);}
+    if(!dates[l.date][l.user])dates[l.date][l.user]=[];
+    dates[l.date][l.user].push(l);
+  });
+
+  el.innerHTML=dateOrder.slice(0,30).map(function(date){
+    var users=dates[date];
+    var isToday=date===todayStr();
+    var dayLabel=isToday?'Today':fmtDate(date)+' ('+dayName(date)+')';
+
+    var usersHtml=Object.keys(users).map(function(userName){
+      var entries=users[userName];
+      var pills=entries.map(function(l){
+        var a=ACTIVITIES.find(function(x){return x.key===l.activity;})||{icon:'\uD83D\uDCCC',name:l.activity};
+        var detail=l.detail?' ('+l.detail+')':'';
+        return'<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;background:var(--surface2);font-size:12px;font-weight:600;margin:2px;">'+a.icon+' '+a.name+detail+'<span style="color:var(--text3);font-size:10px;margin-left:2px;">'+l.time+'</span></span>';
+      }).join('');
+
+      return'<div style="margin-bottom:10px;"><div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px;">'+userName+'</div><div style="display:flex;flex-wrap:wrap;gap:4px;">'+pills+'</div></div>';
+    }).join('');
+
+    return'<div style="margin-bottom:16px;"><div style="font-size:13px;font-weight:800;color:var(--blue);margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--border);">'+dayLabel+'</div>'+usersHtml+'</div>';
   }).join('');
 }
 
